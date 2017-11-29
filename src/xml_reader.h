@@ -20,8 +20,12 @@ void xml_reader_destroy(XmlReader * reader);
 
 char * xml_reader_get_error_message(XmlReader * reader);
 
-XmlDocument * xml_reader_parse_document(XmlReader * reader, char * string);
-XmlElement * xml_reader_parse_element(XmlReader * reader, char * string);
+/* CAN BE ENCODED IN ANY MANNER WHICH IS ACCEPTABLE */
+XmlDocument * xml_reader_parse_document(XmlReader * reader, char * data, size_t data_size);
+
+/* EXPECTS UTF-8 */
+XmlElement * xml_reader_parse_element(XmlReader * reader, char * data);
+
 
 
 

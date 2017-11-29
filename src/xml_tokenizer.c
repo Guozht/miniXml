@@ -136,6 +136,26 @@ static void xml_tokenizer_parse_identifier(XmlTokenizer * tokenizer)
   string_builder_destroy(sb);
 }
 
+static void xml_tokenizer_parse_entity(XmlTokenizer * tokenizer)
+{
+  /* assumes '&' character was already parsed */
+  StringBuilder * sb = string_builder_new();
+
+  while (!xml_tokenizer_accept(tokenizer, ';'))
+  {
+    char c = xml_tokenizer_character(tokenizer);
+    if (c == '\0')
+    {
+      tokenizer->error_message = "Unexpected: EOF while parsing XML entity";
+      return;
+    }
+    string_builder_append_char(sb, c);
+    xml_tokenizer_forward(tokenizer);
+  }
+  
+  xml_tokenizer_add_token(tokenizer, XML_TOKEN_TYPE_ENTITY, string_builder_to_string_destroy(sb));
+}
+
 static void xml_tokenizer_parse_non_tag_data(XmlTokenizer * tokenizer)
 {
   
@@ -154,10 +174,7 @@ static void xml_tokenizer_parse_non_tag_data(XmlTokenizer * tokenizer)
         break;
         
       case '&':
-        /* TODO: Implement thingy
-         * DON'T FORGET TO FORWARD TOKENIZER
-         */
-        assert(0);
+        xml_tokenizer_parse_entity(tokenizer);
         break;
         
       case '<':

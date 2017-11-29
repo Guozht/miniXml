@@ -17,9 +17,11 @@
 struct XmlReader
 {
   List * tokens;
+  Dictionary * entities;
   unsigned int tokens_current;
   
   char * error_message;
+  char * returnable_error_message;
 };
 
 /* INTERNALS */
@@ -29,14 +31,39 @@ static void xml_reader_set_error_message(XmlReader * reader, char * error)
   reader->error_message = strings_clone(error);
 }
 
+static void xml_reader_load_default_entities(XmlReader * reader)
+{
+    reader->entities = dictionary_new(DICTIONARY_TYPE_HASH_TABLE);
+
+    dictionary_put(reader->entities, "lt", str_to_any("<"));
+    dictionary_put(reader->entities, "gt", str_to_any(">"));
+    dictionary_put(reader->entities, "quot", str_to_any("\""));
+    dictionary_put(reader->entities, "apos", str_to_any("\'"));
+}
+
+static void xml_reader_unload_entities(XmlReader * reader)
+{
+ 
+  dictionary_remove(reader->entities, "lt"); /* remove as not to free static data */
+  dictionary_remove(reader->entities, "gt");
+  dictionary_remove(reader->entities, "quot");
+  dictionary_remove(reader->entities, "apos");
+
+  dictionary_destroy_and_free(reader->entities);
+}
+
 
 static void xml_reader_reset(XmlReader * reader)
 {
   if (reader->error_message)
     free(reader->error_message);
-
+  if (reader->returnable_error_message)
+    free(reader->returnable_error_message);
+  
   reader->error_message = NULL;
+  reader->returnable_error_message = NULL;
 }
+
 
 static XmlToken * xml_reader_current_token(XmlReader * reader)
 {
@@ -57,6 +84,18 @@ static bool xml_reader_accept(XmlReader * reader, enum XmlTokenType type)
   else
     return false;
 }
+
+static void xml_reader_prepare_error_message(XmlReader * reader)
+{
+  if (reader->error_message)
+  {
+    char buffer [2048];
+    sprintf(buffer, "%s (%s)", reader->error_message, xml_token_type_get_string(xml_reader_current_token(reader)->type));
+    
+    reader->returnable_error_message = strings_clone(buffer);
+  }
+}
+
 
 static XmlElement * xml_reader_parse_element_imp(XmlReader * reader)
 {
@@ -172,6 +211,26 @@ static XmlElement * xml_reader_parse_element_imp(XmlReader * reader)
         return NULL;
     }
   }
+
+  XmlToken * close_identifier = xml_reader_current_token(reader);
+  if (!xml_reader_accept(reader, XML_TOKEN_TYPE_IDENTIFIER))
+  {
+    xml_reader_set_error_message(reader, "Unexpected token");
+    return NULL;
+  }
+  
+  if (!strings_equals(close_identifier->data, tag_name_token->data))
+  {
+    xml_reader_set_error_message(reader, "Close tag does not match open tag");
+    return NULL;
+  }
+  
+  if (!xml_reader_accept(reader, XML_TOKEN_TYPE_END_TAG))
+  {
+    xml_reader_set_error_message(reader, "Unexpected token");
+    return NULL;
+  }
+  
   
   return ret;
 }
@@ -185,6 +244,7 @@ XmlReader * xml_reader_new()
   assert(reader);
 
   reader->error_message = NULL;
+  reader->returnable_error_message = NULL;
 
   return reader;
 }
@@ -195,41 +255,39 @@ void xml_reader_destroy(XmlReader * reader)
 
   if (reader->error_message)
     free(reader->error_message);
-
+  if (reader->returnable_error_message)
+    free(reader->returnable_error_message);
+  
   free(reader);
 }
 
 
 char * xml_reader_get_error_message(XmlReader * reader)
 {
-  if (reader->error_message)
-  {
-    char buffer [1024];
-    sprintf(buffer, "%s (%s)", reader->error_message, xml_token_type_get_string(xml_reader_current_token(reader)->type));
-    
-    return strings_clone(buffer);
-  }
-  else
-    return NULL;
-}
-
-
-XmlDocument * xml_reader_parse_document(XmlReader * reader, char * string)
-{
-  assert(0); /* NOT YET IMPLEMENTED */
+  assert(reader);
   
-  /* DON'T FORGET TO RESET WHEN IMPLEMENTING */
+  return strings_clone(reader->returnable_error_message);
 }
 
-XmlElement * xml_reader_parse_element(XmlReader * reader, char * string)
+XmlDocument * xml_reader_parse_document(XmlReader * reader, char * data, size_t data_length)
 {
   assert(reader);
-  assert(string);
+  assert(data);
+  assert(data_length > 0); 
+  
+  assert(0); /* NOT YET IMPLEMENTED */
+  
+}
 
+XmlElement * xml_reader_parse_element(XmlReader * reader, char * data)
+{
+  assert(reader);
+  assert(data);
+  
   xml_reader_reset(reader);
 
   
-  XmlTokenizer * tokenizer = xml_tokenizer_new(string);
+  XmlTokenizer * tokenizer = xml_tokenizer_new(data);
   LinkedList * tokens = xml_tokenizer_tokenize(tokenizer);
   
   if (!tokens)
@@ -254,13 +312,18 @@ XmlElement * xml_reader_parse_element(XmlReader * reader, char * string)
     
     reader->tokens = (List *) tokens;
     reader->tokens_current = 0;
-    
+
+    xml_reader_load_default_entities(reader);
+      
     /* Add end of file token */
     list_add(reader->tokens, ptr_to_any(xml_token_new(XML_TOKEN_TYPE_END_OF_FILE, NULL)));
     
     XmlElement * element = xml_reader_parse_element_imp(reader);
     
-    /* TODO: FREE TOKEN LIST */
+    xml_reader_prepare_error_message(reader);
+    
+    list_destroy_and_user_free(reader->tokens, (void (*)(void *)) xml_token_destroy);
+    xml_reader_unload_entities(reader);
     
     return element;
   }
