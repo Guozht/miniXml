@@ -12,7 +12,8 @@ typedef struct XmlDocument XmlDocument;
 
 
 XmlDocument * xml_document_new();
-XmlDocument * xml_document_parse(char * string);
+XmlDocument * xml_document_new_with_root(XmlElement * root);
+XmlDocument * xml_document_parse(char * string, size_t string_length);
 
 void xml_document_destroy(XmlDocument * document);
 
@@ -26,8 +27,3 @@ void xml_document_set_version(XmlDocument * document, char * version);
 
 
 #endif
-
-
-
-
-

@@ -17,33 +17,36 @@ int main ( void )
   size_t raw_data_length;
   char * raw_data = files_read_all(FILE_NAME, &raw_data_length);
 
-  char * string = strings_from_array(raw_data, (unsigned int) raw_data_length);
-
   XmlReader * reader = xml_reader_new();
-
   printf("parsing %s... ", FILE_NAME);
-  XmlElement * element = xml_reader_parse_element(reader, string);
+  XmlDocument * document = xml_reader_parse_document(
+      reader,
+      raw_data,
+      raw_data_length
+    );
   printf("done\n");
-  
-  if (!element)
+
+  if (!document)
   {
+    printf("Parse Failed!\n");
+
     char * error_message = xml_reader_get_error_message(reader);
     printf("Error Message: %s\n", error_message);
     free(error_message);
-    
+
     return 1;
   }
   else
   {
-    
-    printf("parsed element: \n\n");
-    
+
+    printf("parsed document: \n\n");
+
     XmlWriter * writer = xml_writer_new();
     xml_writer_set_style(writer, XML_WRITER_STYLE_COMPRESSED);
-    xml_writer_write_element(writer, element, stdout);
-    
+    xml_writer_write_document(writer, document, stdout);
+
     printf("\n\n=== end of element ===\n");
-    
+
     return 0;
   }
 }

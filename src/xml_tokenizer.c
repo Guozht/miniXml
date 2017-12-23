@@ -13,10 +13,10 @@
 /*
  * TODO: Add in Unicode Thingys
  *
- * Valids:   #x9 | #xA | #xD | [#x20-#xD7FF] | 
- *          [#xE000-#xFFFD] | [#x10000-#x10FFFF]  
+ * Valids:   #x9 | #xA | #xD | [#x20-#xD7FF] |
+ *          [#xE000-#xFFFD] | [#x10000-#x10FFFF]
  * (any Unicode character, excluding the surrogate blocks, FFFE, and FFFF.)
- * 
+ *
  */
 
 
@@ -35,7 +35,7 @@ static void xml_tokenizer_forward(XmlTokenizer * tokenizer)
   }
   else
     tokenizer->column++;
-  
+
   tokenizer->current++;
 }
 
@@ -55,7 +55,7 @@ static bool xml_tokenizer_accept(XmlTokenizer * tokenizer, char c)
 static bool xml_tokenizer_accept_range(XmlTokenizer * tokenizer, char start, char end)
 {
   char c = xml_tokenizer_character(tokenizer);
-  
+
   if (c >= start && c <= end)
   {
     xml_tokenizer_forward(tokenizer);
@@ -63,14 +63,14 @@ static bool xml_tokenizer_accept_range(XmlTokenizer * tokenizer, char start, cha
   }
   else
     return false;
-  
+
 }
 
 static bool xml_tokenizer_accept_whitespace(XmlTokenizer * tokenizer)
 {
   char c = xml_tokenizer_character(tokenizer);
 
-  if (chars_is_white_space(c))
+  if (chars_is_white_space(c) && c != 0)
   {
     xml_tokenizer_forward(tokenizer);
     return true;
@@ -82,9 +82,9 @@ static bool xml_tokenizer_accept_whitespace(XmlTokenizer * tokenizer)
 static bool xml_tokenizer_accept_any_letter(XmlTokenizer * tokenizer)
 {
   /* TODO: Expand to non-ASCII7 characters as well */
- 
+
   char c = xml_tokenizer_character(tokenizer);
-  
+
   if (
     ('a' <= c && c >= 'z') ||
     ('A' <= c && c >= 'Z')
@@ -95,7 +95,7 @@ static bool xml_tokenizer_accept_any_letter(XmlTokenizer * tokenizer)
   }
   else
     return false;
-  
+
 }
 
 static void xml_tokenizer_add_token(XmlTokenizer * tokenizer, enum XmlTokenType type, char * data)
@@ -105,20 +105,20 @@ static void xml_tokenizer_add_token(XmlTokenizer * tokenizer, enum XmlTokenType 
 
 static void xml_tokenizer_parse_identifier(XmlTokenizer * tokenizer)
 {
-  
+
   char c = xml_tokenizer_character(tokenizer);
   StringBuilder * sb = string_builder_new();
-  
+
   if (
     xml_tokenizer_accept_any_letter(tokenizer) ||
     xml_tokenizer_accept(tokenizer, '_') ||
     xml_tokenizer_accept(tokenizer, '.')
     )
   {
-    
+
     string_builder_append_char(sb, c);
     c = xml_tokenizer_character(tokenizer);
-    
+
     while (
       xml_tokenizer_accept_any_letter(tokenizer) ||
       xml_tokenizer_accept_range(tokenizer, '0', '9') ||
@@ -129,10 +129,10 @@ static void xml_tokenizer_parse_identifier(XmlTokenizer * tokenizer)
       string_builder_append_char(sb, c);
       c = xml_tokenizer_character(tokenizer);
     }
-    
+
     xml_tokenizer_add_token(tokenizer, XML_TOKEN_TYPE_IDENTIFIER, string_builder_to_string(sb));
   }
-  
+
   string_builder_destroy(sb);
 }
 
@@ -152,31 +152,31 @@ static void xml_tokenizer_parse_entity(XmlTokenizer * tokenizer)
     string_builder_append_char(sb, c);
     xml_tokenizer_forward(tokenizer);
   }
-  
+
   xml_tokenizer_add_token(tokenizer, XML_TOKEN_TYPE_ENTITY, string_builder_to_string_destroy(sb));
 }
 
 static void xml_tokenizer_parse_non_tag_data(XmlTokenizer * tokenizer)
 {
-  
+
   bool tag_met = false;
   StringBuilder * sb = string_builder_new();
-  
+
   do
   {
-    
+
     char c = xml_tokenizer_character(tokenizer);
-    
+
     switch (c)
     {
       case '>':
         tokenizer->error_message = "Unexpected character: '%c'";
         break;
-        
+
       case '&':
         xml_tokenizer_parse_entity(tokenizer);
         break;
-        
+
       case '<':
         tag_met = true;
         break;
@@ -184,7 +184,7 @@ static void xml_tokenizer_parse_non_tag_data(XmlTokenizer * tokenizer)
       case '\0': /* END OF FILE (EOF) */
         tag_met = true;
         break;
-      
+
       default:
         string_builder_append_char(sb, c);
         xml_tokenizer_forward(tokenizer);
@@ -192,13 +192,13 @@ static void xml_tokenizer_parse_non_tag_data(XmlTokenizer * tokenizer)
     }
   }
   while (!tag_met && !tokenizer->error_message);
-  
+
   char * remnant = string_builder_to_string_destroy(sb);
   if (!strings_is_empty(remnant))
   {
     xml_tokenizer_add_token(tokenizer, XML_TOKEN_TYPE_TEXT, remnant);
   }
-  
+
   free(remnant);
 }
 
@@ -233,7 +233,7 @@ static void xml_tokenizer_parse_in_tag(XmlTokenizer * tokenizer, bool * in_tag)
   if (xml_tokenizer_accept(tokenizer, '/'))
   {
     *in_tag = false;
-    
+
     if (xml_tokenizer_accept(tokenizer, '>'))
       xml_tokenizer_add_token(tokenizer, XML_TOKEN_TYPE_END_EMPTY_TAG, NULL);
     else
@@ -242,7 +242,7 @@ static void xml_tokenizer_parse_in_tag(XmlTokenizer * tokenizer, bool * in_tag)
   else if (xml_tokenizer_accept(tokenizer, '>'))
   {
     *in_tag = false;
-    
+
     xml_tokenizer_add_token(tokenizer, XML_TOKEN_TYPE_END_TAG, NULL);
   }
   else if (xml_tokenizer_accept(tokenizer, '='))
@@ -268,7 +268,7 @@ static void xml_tokenizer_parse_out_tag(XmlTokenizer * tokenizer, bool * in_tag)
   if (xml_tokenizer_accept(tokenizer, '<'))
   {
     *in_tag = true;
-    
+
     if (xml_tokenizer_accept(tokenizer, '/'))
     {
       xml_tokenizer_add_token(tokenizer, XML_TOKEN_TYPE_START_END_TAG, NULL);
@@ -300,7 +300,7 @@ static void xml_tokenizer_parse_out_tag(XmlTokenizer * tokenizer, bool * in_tag)
   {
     xml_tokenizer_parse_non_tag_data(tokenizer);
   }
-  
+
 }
 
 static void xml_tokenizer_destroy_tokens_callback(Any any)
@@ -324,7 +324,7 @@ XmlTokenizer * xml_tokenizer_new(char * string)
   assert(string);
 
   XmlTokenizer * ret = (XmlTokenizer *) malloc(sizeof(XmlTokenizer));
-  
+
   ret->string = string;
   ret->error_message = NULL;
   ret->string_length = strings_length(string);
@@ -343,7 +343,7 @@ void xml_tokenizer_destroy(XmlTokenizer * tokenizer)
 
 LinkedList * xml_tokenizer_tokenize(XmlTokenizer * tokenizer)
 {
-  
+
   bool in_tag = false;
 
   while (tokenizer->current < tokenizer->string_length)
@@ -355,11 +355,37 @@ LinkedList * xml_tokenizer_tokenize(XmlTokenizer * tokenizer)
 
     if (tokenizer->error_message)
       return NULL;
-    
+
   }
 
   return tokenizer->tokens;
 }
 
+LinkedList * xml_tokenizer_tokenize_declaration(XmlTokenizer * tokenizer)
+{
 
+  while (tokenizer->current < tokenizer->string_length)
+  {
+    while (xml_tokenizer_accept_whitespace(tokenizer));
 
+    if (tokenizer->current >= tokenizer->string_length)
+      continue;
+
+    if (xml_tokenizer_accept_any_letter(tokenizer) || xml_tokenizer_accept(tokenizer, '_'))
+    {
+      tokenizer->current--;
+      xml_tokenizer_parse_identifier(tokenizer);
+    }
+    else if (xml_tokenizer_accept(tokenizer, '='))
+      xml_tokenizer_add_token(tokenizer, XML_TOKEN_TYPE_EQUALS, NULL);
+    else if (xml_tokenizer_accept(tokenizer, '\"'))
+      xml_tokenizer_parse_quoted_text(tokenizer);
+    else
+      tokenizer->error_message = "Unexpected character: %c";
+
+    if (tokenizer->error_message)
+      return NULL;
+  }
+
+  return tokenizer->tokens;
+}

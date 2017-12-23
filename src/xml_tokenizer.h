@@ -9,11 +9,11 @@
 
 struct XmlTokenizer
 {
-  char 
+  char
     * string,
     * error_message;
-  unsigned int 
-    string_length, 
+  unsigned int
+    string_length,
     current,
     line,
     column;
@@ -27,6 +27,6 @@ void xml_tokenizer_destroy(XmlTokenizer * tokenizer);
 
 char xml_tokenizer_character(XmlTokenizer * tokenizer);
 LinkedList * xml_tokenizer_tokenize(XmlTokenizer * tokenizer);
-
+LinkedList * xml_tokenizer_tokenize_declaration(XmlTokenizer * tokenizer);
 
 #endif
