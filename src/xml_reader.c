@@ -39,6 +39,7 @@ static void xml_reader_load_default_entities(XmlReader * reader)
     dictionary_put(reader->entities, "gt", str_to_any(">"));
     dictionary_put(reader->entities, "quot", str_to_any("\""));
     dictionary_put(reader->entities, "apos", str_to_any("\'"));
+    dictionary_put(reader->entities, "amp", str_to_any("&"));
 }
 
 static void xml_reader_unload_entities(XmlReader * reader)
@@ -48,6 +49,7 @@ static void xml_reader_unload_entities(XmlReader * reader)
   dictionary_remove(reader->entities, "gt");
   dictionary_remove(reader->entities, "quot");
   dictionary_remove(reader->entities, "apos");
+  dictionary_remove(reader->entities, "amp");
 
   dictionary_destroy_and_free(reader->entities);
 }
@@ -160,6 +162,27 @@ static Dictionary * xml_reader_parse_declaration(
   return ret;
 }
 
+static bool xml_reader_encoding_matches(Dictionary * dec, UnicodeEncodingType type)
+{
+  char
+    * declared_encoding = any_to_str(dictionary_get(dec, "encoding")),
+    * detected_encoding = unicode_encoding_type_to_string(type);
+
+  if (strings_equals_ignore_case(declared_encoding, detected_encoding))
+    return true;
+
+  if (
+    !strings_ends_with_ignore_case(detected_encoding, "BE") &&
+    !strings_ends_with_ignore_case(detected_encoding, "LE")
+    )
+    return false;
+
+  if (strings_length(detected_encoding) - 2 != strings_length(declared_encoding))
+    return false;
+
+  return strings_starts_with_ignore_case(detected_encoding, declared_encoding);
+}
+
 static Dictionary * xml_reader_parse_and_confirm_declaration(
     uint32_t * code_points,
     size_t code_points_length,
@@ -192,23 +215,16 @@ static Dictionary * xml_reader_parse_and_confirm_declaration(
     return NULL;
   }
 
+  /* if no encoding specified, assumes decodable is correct */
   if (!dictionary_has(dic, "encoding"))
+    return dic;
+
+  if (!xml_reader_encoding_matches(dic, type))
   {
     dictionary_destroy_and_free(dic);
     return NULL;
   }
 
-  char * encoding_string = any_to_str(dictionary_get(dic, "encoding"));
-  if (
-      !strings_equals_ignore_case(
-          encoding_string,
-          unicode_encoding_type_to_string(type)
-        )
-    )
-  {
-    dictionary_destroy_and_free(dic);
-    return NULL;
-  }
 
   return dic;
 }
@@ -268,6 +284,8 @@ static void xml_reader_prepare_error_message(XmlReader * reader, bool with_token
 
 static XmlElement * xml_reader_parse_element_imp(XmlReader * reader, bool first)
 {
+  StringBuilder
+    * attrib_sb;
   XmlElement
     * ret,
     * child;
@@ -278,8 +296,9 @@ static XmlElement * xml_reader_parse_element_imp(XmlReader * reader, bool first)
     * pre_token
     ;
   bool
-    inTokenLoop,
-    tagEmpty;
+    in_token_loop,
+    in_attrib_loop,
+    tag_empty;
 
   if (first)
   {
@@ -315,20 +334,20 @@ static XmlElement * xml_reader_parse_element_imp(XmlReader * reader, bool first)
   ret = xml_element_new(tag_name_token->data);
 
 
-  inTokenLoop = true;
+  in_token_loop = true;
   do
   {
 
     if (xml_reader_accept(reader, XML_TOKEN_TYPE_END_TAG))
     {
-      tagEmpty = false;
-      inTokenLoop = false;
+      tag_empty = false;
+      in_token_loop = false;
       continue;
     }
     if (xml_reader_accept(reader, XML_TOKEN_TYPE_END_EMPTY_TAG))
     {
-      tagEmpty = true;
-      inTokenLoop = false;
+      tag_empty = true;
+      in_token_loop = false;
       continue;
     }
 
@@ -347,28 +366,57 @@ static XmlElement * xml_reader_parse_element_imp(XmlReader * reader, bool first)
       xml_element_destroy(ret);
       return NULL;
     }
-    attrib_value_token = xml_reader_current_token(reader);
-    if (!xml_reader_accept(reader, XML_TOKEN_TYPE_QUOTED_STRING))
+
+    in_attrib_loop = true;
+    attrib_sb = string_builder_new();
+    while (in_attrib_loop)
     {
-      xml_reader_set_error_message(reader, "Expected quoted attribute value");
-      xml_element_destroy(ret);
-      return NULL;
+      attrib_value_token = xml_reader_current_token(reader);
+      if (!xml_reader_accept(reader, XML_TOKEN_TYPE_QUOTED_STRING))
+      {
+        xml_reader_set_error_message(reader, "Expected quoted attribute value");
+        xml_element_destroy(ret);
+        string_builder_destroy(attrib_sb);
+        return NULL;
+      }
+      string_builder_append(attrib_sb, attrib_value_token->data);
+
+      attrib_value_token = xml_reader_current_token(reader);
+      if (xml_reader_accept(reader, XML_TOKEN_TYPE_ENTITY))
+      {
+        Any value;
+        if (!dictionary_try_get(reader->entities, attrib_value_token->data, &value))
+        {
+          reader->tokens_current--;
+          xml_reader_set_error_message(reader, "Unknown entity");
+          xml_element_destroy(ret);
+          string_builder_destroy(attrib_sb);
+          return NULL;
+        }
+
+        string_builder_append(attrib_sb, any_to_str(value));
+      }
+      else
+        in_attrib_loop = false;
+
     }
 
     xml_element_add_attribute(
       ret,
       xml_attribute_new(
         attrib_name_token->data,
-        attrib_value_token->data
+        string_builder_to_temp_string(attrib_sb)
         )
       );
   }
-  while (inTokenLoop);
+  while (in_token_loop);
 
-  if (tagEmpty)
+  if (tag_empty)
     return ret;
 
 
+  Any entity_value_any;
+  StringBuilder * text_sb = string_builder_new();
   while (
     !xml_reader_accept(reader, XML_TOKEN_TYPE_START_END_TAG)
     )
@@ -379,10 +427,23 @@ static XmlElement * xml_reader_parse_element_imp(XmlReader * reader, bool first)
     switch (current->type)
     {
       case XML_TOKEN_TYPE_TEXT:
-        array_list_add(ret->children, str_to_any(strings_clone(current->data)));
+        string_builder_append(text_sb, current->data);
+        reader->tokens_current++;
+        break;
+      case XML_TOKEN_TYPE_ENTITY:
+        if (!dictionary_try_get(reader->entities, current->data, &entity_value_any))
+        {
+          xml_reader_set_error_message(reader, "Unknown entity");
+          xml_element_destroy(ret);
+          string_builder_destroy(text_sb);
+          return NULL;
+        }
+        string_builder_append(text_sb, any_to_str(entity_value_any));
         reader->tokens_current++;
         break;
       case XML_TOKEN_TYPE_START_TAG:
+        array_list_add(ret->children, str_to_any(string_builder_to_string(text_sb)));
+        string_builder_clear(text_sb);
         child = xml_reader_parse_element_imp(reader, false);
         if (!child)
         {
@@ -394,9 +455,16 @@ static XmlElement * xml_reader_parse_element_imp(XmlReader * reader, bool first)
       default:
         xml_reader_set_error_message(reader, "Unexpected token");
         xml_element_destroy(ret);
+        string_builder_destroy(text_sb);
         return NULL;
     }
   }
+
+  if (string_builder_length(text_sb))
+  {
+    array_list_add(ret->children, str_to_any(string_builder_to_string(text_sb)));
+  }
+  string_builder_destroy(text_sb);
 
   XmlToken * close_identifier = xml_reader_current_token(reader);
   if (!xml_reader_accept(reader, XML_TOKEN_TYPE_IDENTIFIER))
@@ -465,15 +533,13 @@ XmlDocument * xml_reader_parse_document(XmlReader * reader, char * data, size_t 
   uint32_t * code_points, * root_start;
   Dictionary * declaration;
 
-  int readable_types_count = 7;
-  UnicodeEncodingType readable_types [7];
+  int readable_types_count = 5;
+  UnicodeEncodingType readable_types [readable_types_count];
   readable_types[0] = UNICODE_ENCODING_TYPE_UTF8;
-  readable_types[1] = UNICODE_ENCODING_TYPE_UTF16;
-  readable_types[2] = UNICODE_ENCODING_TYPE_UTF16BE;
-  readable_types[3] = UNICODE_ENCODING_TYPE_UTF16LE;
-  readable_types[4] = UNICODE_ENCODING_TYPE_UTF32;
-  readable_types[5] = UNICODE_ENCODING_TYPE_UTF32BE;
-  readable_types[6] = UNICODE_ENCODING_TYPE_UTF32LE;
+  readable_types[1] = UNICODE_ENCODING_TYPE_UTF16BE;
+  readable_types[2] = UNICODE_ENCODING_TYPE_UTF16LE;
+  readable_types[3] = UNICODE_ENCODING_TYPE_UTF32BE;
+  readable_types[4] = UNICODE_ENCODING_TYPE_UTF32LE;
 
   for (unsigned int k = 0; k < readable_types_count; k++)
   {

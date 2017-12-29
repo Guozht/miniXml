@@ -43,7 +43,7 @@ void xml_token_destroy(XmlToken * token)
   XML_TOKEN_TYPE_END_COMMENT_TAG
  */
 
-/* <remove> */
+/* TODO: remove method */
 char * xml_token_type_get_string(enum XmlTokenType type)
 {
   switch (type)
@@ -76,4 +76,3 @@ char * xml_token_type_get_string(enum XmlTokenType type)
       return "UNKNOWN";
   }
 }
-/* </remove> */

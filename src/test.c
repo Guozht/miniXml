@@ -47,6 +47,14 @@ int main ( void )
 
     printf("\n\n=== end of element ===\n");
 
+    XmlElement * root = xml_document_get_root(document);
+    XmlElement * sub = xml_element_get_child(root, "book");
+
+    XmlAttribute * attrib = xml_element_get_attribute(sub, "id");
+    char * value = xml_attribute_get_value(attrib);
+    printf("value root->book-(attrib)->d: %s\n", value);
+    free(value);
+
     return 0;
   }
 }

@@ -50,11 +50,11 @@ XmlElement * xml_element_parse(char * string)
 void xml_element_destroy(XmlElement * element)
 {
   assert(element);
-  
+
   array_list_destroy_and(element->attributes, xml_element_destroy_attribute_any);
   array_list_destroy_and(element->children, xml_element_destroy_child_any);
   free(element->name);
-  
+
   free(element);
 }
 
@@ -116,22 +116,25 @@ XmlElement * xml_element_get_child(XmlElement * element, char * name)
 {
   assert(element);
   assert(name);
-  
+
+  Any child_any;
   XmlElement * child;
   ArrayListTraversal * traversal = array_list_get_traversal(element->children);
   while (!array_list_traversal_completed(traversal))
   {
-    
-    child = (XmlElement *) any_to_ptr(array_list_traversal_next(traversal));
-    
+    child_any = array_list_traversal_next(traversal);
+    if (child_any.type != ANY_TYPE_POINTER)
+      continue;
+    child = (XmlElement *) any_to_ptr(child_any);
+
     if (strings_equals(child->name, name))
     {
       array_list_traversal_destroy(traversal);
-      
+
       return child;
     }
   }
-  
+
   return NULL;
 }
 
@@ -140,13 +143,13 @@ char * xml_element_get_value(XmlElement * element)
   XmlWriter * writer;
   ArrayListTraversal * traversal;
   StringBuilder * sb;
-  
+
   traversal = array_list_get_traversal(element->children);
   sb = string_builder_new();
-  
+
   writer = xml_writer_new();
   xml_writer_set_style(writer, XML_WRITER_STYLE_COMPRESSED);
-  
+
   while (!array_list_traversal_completed(traversal))
   {
     Any child_any = array_list_traversal_next(traversal);
@@ -163,9 +166,9 @@ char * xml_element_get_value(XmlElement * element)
     else
       assert(0);
   }
-  
+
   xml_writer_destroy(writer);
-  
+
   return string_builder_to_string_destroy(sb);
 }
 
@@ -173,7 +176,7 @@ void xml_element_set_name(XmlElement * element, char * name)
 {
   assert(element);
   assert(name);
-  
+
   element->name = strings_clone(name);
 }
 
@@ -187,14 +190,14 @@ void xml_element_set_value(XmlElement * element, char * value)
 void xml_element_clear_attributes(XmlElement * element)
 {
   assert(element);
-  
+
   array_list_clear_and(element->attributes, xml_element_destroy_attribute_any);
 }
 
 void xml_element_clear_children(XmlElement * element)
 {
   assert(element);
-  
+
   array_list_clear_and(element->attributes, xml_element_destroy_child_any);
 }
 
@@ -203,7 +206,7 @@ void xml_element_add_attribute(XmlElement * element, XmlAttribute * attribute)
 {
   assert(element);
   assert(attribute);
-  
+
   array_list_add(element->attributes, ptr_to_any(attribute));
 }
 
@@ -211,7 +214,7 @@ void xml_element_add_child(XmlElement * element, XmlElement * child)
 {
   assert(element);
   assert(child);
-  
+
   array_list_add(element->children, ptr_to_any(child));
 }
 
@@ -220,7 +223,7 @@ void xml_element_add_attributes(XmlElement * element, List * attributes)
 {
   assert(element);
   assert(attributes);
-  
+
   array_list_add_range(element->attributes, attributes);
 }
 
@@ -228,10 +231,6 @@ void xml_element_add_children(XmlElement * element, List * children)
 {
   assert(element);
   assert(children);
-  
+
   array_list_add_range(element->children, children);
 }
-
-
-
-

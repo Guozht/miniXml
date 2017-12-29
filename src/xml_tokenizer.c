@@ -138,7 +138,7 @@ static void xml_tokenizer_parse_identifier(XmlTokenizer * tokenizer)
 
 static void xml_tokenizer_parse_entity(XmlTokenizer * tokenizer)
 {
-  /* assumes '&' character was already parsed */
+  xml_tokenizer_forward(tokenizer); /* removing '&' character */
   StringBuilder * sb = string_builder_new();
 
   while (!xml_tokenizer_accept(tokenizer, ';'))
@@ -174,6 +174,15 @@ static void xml_tokenizer_parse_non_tag_data(XmlTokenizer * tokenizer)
         break;
 
       case '&':
+        if (string_builder_length(sb) > 0)
+        {
+          xml_tokenizer_add_token(
+              tokenizer,
+              XML_TOKEN_TYPE_TEXT,
+              string_builder_to_string(sb)
+            );
+          string_builder_clear(sb);
+        }
         xml_tokenizer_parse_entity(tokenizer);
         break;
 
@@ -213,6 +222,23 @@ static void xml_tokenizer_parse_quoted_text(XmlTokenizer * tokenizer)
     string_builder_append_char(sb, c);
     xml_tokenizer_forward(tokenizer);
     c = xml_tokenizer_character(tokenizer);
+
+    if (c == '&')
+    {
+      if (string_builder_length(sb) > 0)
+      {
+        xml_tokenizer_add_token(
+            tokenizer,
+            XML_TOKEN_TYPE_QUOTED_STRING,
+            string_builder_to_string(sb)
+          );
+        string_builder_clear(sb);
+      }
+      xml_tokenizer_parse_entity(tokenizer);
+      if (tokenizer->error_message)
+        return;
+      c = xml_tokenizer_character(tokenizer);
+    }
 
     if (c == '\0')
     {
@@ -255,6 +281,7 @@ static void xml_tokenizer_parse_in_tag(XmlTokenizer * tokenizer, bool * in_tag)
   }
   else if (xml_tokenizer_accept_any_letter(tokenizer) || xml_tokenizer_accept(tokenizer, '_'))
   {
+    tokenizer->current--;
     xml_tokenizer_parse_identifier(tokenizer);
   }
   else

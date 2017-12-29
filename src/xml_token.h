@@ -34,9 +34,8 @@ XmlToken * xml_token_new(enum XmlTokenType type, char * data);
 void xml_token_destroy(XmlToken * token);
 
 
-/* <REMOVE> */
+/* TODO: remove function*/
 char * xml_token_type_get_string(enum XmlTokenType type);
-/* </REMOVE> */
 
 
 #endif
