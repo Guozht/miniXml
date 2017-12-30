@@ -1,4 +1,24 @@
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ *                                                                         *
+ *  miniXml: a simple XML parsing library for C                            *
+ *  Copyright (C) 2017  LeqxLeqx                                           *
+ *                                                                         *
+ *  This program is free software: you can redistribute it and/or modify   *
+ *  it under the terms of the GNU General Public License as published by   *
+ *  the Free Software Foundation, either version 3 of the License, or      *
+ *  (at your option) any later version.                                    *
+ *                                                                         *
+ *  This program is distributed in the hope that it will be useful,        *
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of         *
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the          *
+ *  GNU General Public License for more details.                           *
+ *                                                                         *
+ *  You should have received a copy of the GNU General Public License      *
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.  *
+ *                                                                         *
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
+ 
 
 #include "xml_token.h"
 
@@ -27,52 +47,36 @@ void xml_token_destroy(XmlToken * token)
   free(token);
 }
 
-/*
- 
-  XML_TOKEN_TYPE_START_TAG,
-  XML_TOKEN_TYPE_END_TAG,
-  XML_TOKEN_TYPE_END_EMPTY_TAG,
-  XML_TOKEN_TYPE_START_END_TAG,
-  XML_TOKEN_TYPE_IDENTIFIER,
-  XML_TOKEN_TYPE_EQUALS,
-  XML_TOKEN_TYPE_ENTITY,
-  XML_TOKEN_TYPE_QUOTED_STRING,
-  XML_TOKEN_TYPE_TEXT,
-  
-  XML_TOKEN_TYPE_START_COMMENT_TAG,
-  XML_TOKEN_TYPE_END_COMMENT_TAG
- */
 
-/* TODO: remove method */
-char * xml_token_type_get_string(enum XmlTokenType type)
+char * xml_token_to_string(XmlToken * token)
 {
-  switch (type)
+  switch (token->type)
   {
-    
+
     case XML_TOKEN_TYPE_START_TAG:
-      return "<";
+      return strings_clone("<");
     case XML_TOKEN_TYPE_END_TAG:
-      return ">";
+      return strings_clone(">");
     case XML_TOKEN_TYPE_END_EMPTY_TAG:
-      return "/>";
+      return strings_clone("/>");
     case XML_TOKEN_TYPE_START_END_TAG:
-      return "</";
+      return strings_clone("</");
     case XML_TOKEN_TYPE_IDENTIFIER:
-      return "IDENT";
+      return strings_clone(token->data);
     case XML_TOKEN_TYPE_EQUALS:
-      return "=";
+      return strings_clone("=");
     case XML_TOKEN_TYPE_ENTITY:
-      return "&ent;";
+      return strings_format("&%s;", token->data);
     case XML_TOKEN_TYPE_QUOTED_STRING:
-      return "\"string\"";
+      return strings_format("\"%s\"", token->data);
     case XML_TOKEN_TYPE_TEXT:
-      return "text";
+      return strings_clone(token->data);
     case XML_TOKEN_TYPE_START_COMMENT_TAG:
-      return "<!--";
+      return strings_clone("<!--");
     case XML_TOKEN_TYPE_END_COMMENT_TAG:
-      return "-->";
-    
+      return strings_clone("-->");
+
     default:
-      return "UNKNOWN";
+      assert(0);
   }
 }

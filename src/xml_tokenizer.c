@@ -1,4 +1,24 @@
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ *                                                                         *
+ *  miniXml: a simple XML parsing library for C                            *
+ *  Copyright (C) 2017  LeqxLeqx                                           *
+ *                                                                         *
+ *  This program is free software: you can redistribute it and/or modify   *
+ *  it under the terms of the GNU General Public License as published by   *
+ *  the Free Software Foundation, either version 3 of the License, or      *
+ *  (at your option) any later version.                                    *
+ *                                                                         *
+ *  This program is distributed in the hope that it will be useful,        *
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of         *
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the          *
+ *  GNU General Public License for more details.                           *
+ *                                                                         *
+ *  You should have received a copy of the GNU General Public License      *
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.  *
+ *                                                                         *
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
+ 
 #include "xml_tokenizer.h"
 
 #include <assert.h>
@@ -81,13 +101,13 @@ static bool xml_tokenizer_accept_whitespace(XmlTokenizer * tokenizer)
 
 static bool xml_tokenizer_accept_any_letter(XmlTokenizer * tokenizer)
 {
-  /* TODO: Expand to non-ASCII7 characters as well */
 
   char c = xml_tokenizer_character(tokenizer);
 
   if (
     ('a' <= c && c >= 'z') ||
-    ('A' <= c && c >= 'Z')
+    ('A' <= c && c >= 'Z') ||
+    c > 0x7F /* considers all values out of ascii-7 to be valid characters */
     )
   {
     xml_tokenizer_forward(tokenizer);
@@ -112,7 +132,8 @@ static void xml_tokenizer_parse_identifier(XmlTokenizer * tokenizer)
   if (
     xml_tokenizer_accept_any_letter(tokenizer) ||
     xml_tokenizer_accept(tokenizer, '_') ||
-    xml_tokenizer_accept(tokenizer, '.')
+    xml_tokenizer_accept(tokenizer, '.') ||
+    xml_tokenizer_accept(tokenizer, ':')
     )
   {
 
@@ -123,7 +144,8 @@ static void xml_tokenizer_parse_identifier(XmlTokenizer * tokenizer)
       xml_tokenizer_accept_any_letter(tokenizer) ||
       xml_tokenizer_accept_range(tokenizer, '0', '9') ||
       xml_tokenizer_accept(tokenizer, '_') ||
-      xml_tokenizer_accept(tokenizer, '.')
+      xml_tokenizer_accept(tokenizer, '.') ||
+      xml_tokenizer_accept(tokenizer, ':')
       )
     {
       string_builder_append_char(sb, c);

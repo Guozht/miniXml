@@ -1,4 +1,24 @@
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ *                                                                         *
+ *  miniXml: a simple XML parsing library for C                            *
+ *  Copyright (C) 2017  LeqxLeqx                                           *
+ *                                                                         *
+ *  This program is free software: you can redistribute it and/or modify   *
+ *  it under the terms of the GNU General Public License as published by   *
+ *  the Free Software Foundation, either version 3 of the License, or      *
+ *  (at your option) any later version.                                    *
+ *                                                                         *
+ *  This program is distributed in the hope that it will be useful,        *
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of         *
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the          *
+ *  GNU General Public License for more details.                           *
+ *                                                                         *
+ *  You should have received a copy of the GNU General Public License      *
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.  *
+ *                                                                         *
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
+ 
 
 #include <assert.h>
 #include <baselib/baselib.h>
@@ -52,12 +72,12 @@ static struct XmlAppendable * xml_appendable_new(enum XmlAppendableType type, vo
 {
   struct XmlAppendable * ret = (struct XmlAppendable *) malloc(sizeof(struct XmlAppendable));
   assert(ret);
-  
+
   ret->type = type;
   ret->limit = limit;
   ret->length = 0;
   ret->ptr = ptr;
-  
+
   return ret;
 }
 
@@ -65,21 +85,21 @@ static void xml_appendable_append(struct XmlAppendable * appendable, char * stri
 {
   switch (appendable->type)
   {
-    
+
     case XML_APPENDABLE_TYPE_STRING_BUILDER:
       string_builder_append((StringBuilder *) appendable->ptr, string);
       break;
     case XML_APPENDABLE_TYPE_STRING:
       if (appendable->length >= appendable->limit && appendable->limit != -1)
         return;
-      
+
       unsigned int string_length = strings_length(string);
       if (appendable->length + string_length > appendable->limit && appendable->limit != -1)
       {
         memcpy(
-          &((char *) appendable->ptr)[appendable->length], 
+          &((char *) appendable->ptr)[appendable->length],
           string,
-          sizeof(char) * (string_length - appendable->limit + appendable->length)          
+          sizeof(char) * (string_length - appendable->limit + appendable->length)
           );
         appendable->length = appendable->limit;
       }
@@ -97,10 +117,10 @@ static void xml_appendable_append(struct XmlAppendable * appendable, char * stri
     case XML_APPENDABLE_TYPE_STREAM:
       fputs(string, (FILE *) appendable->ptr);
       break;
-    
+
     default:
       assert(0);
-      
+
   }
 }
 
@@ -108,25 +128,25 @@ static void xml_appendable_append_char(struct XmlAppendable * appendable, char c
 {
   switch (appendable->type)
   {
-    
+
     case XML_APPENDABLE_TYPE_STRING_BUILDER:
       string_builder_append_char((StringBuilder *) appendable->ptr, c);
       break;
     case XML_APPENDABLE_TYPE_STRING:
       if (appendable->length >= appendable->limit && appendable->limit != -1)
         return;
-      
+
       ((char *) appendable->ptr)[appendable->length++] = c;
       ((char *) appendable->ptr)[appendable->length] = '\0';
-      
+
       break;
     case XML_APPENDABLE_TYPE_STREAM:
       fputc(c, (FILE *) appendable->ptr);
       break;
-    
+
     default:
       assert(0);
-      
+
   }
 }
 
@@ -141,10 +161,10 @@ static char * xml_writer_escape_string(char * str, bool attribute)
   while (str[top] != '\0')
   {
     c = str[top++];
-    
+
     switch (c)
     {
-      
+
       case '&':
         string_builder_append(sb, "&amp;");
         break;
@@ -166,15 +186,15 @@ static char * xml_writer_escape_string(char * str, bool attribute)
         else
           string_builder_append_char(sb, '\'');
         break;
-      
+
       default:
         string_builder_append_char(sb, c);
         break;
-        
+
     }
-    
+
   }
-  
+
   return string_builder_to_string_destroy(sb);
 }
 
@@ -182,7 +202,7 @@ static void xml_writer_print_indent_to_appendable(XmlWriter * writer, struct Xml
 {
   if (writer->style == XML_WRITER_STYLE_COMPRESSED)
     return;
-  
+
   for (unsigned int k = 0; k < writer->indent_depth * writer->indent_width; k++)
   {
     xml_appendable_append_char(appendable, ' ');
@@ -197,7 +217,7 @@ static void xml_writer_standard_write_attribute_callback(struct XmlAppendable * 
   xml_appendable_append(appendable, attribute->name);
   xml_appendable_append_char(appendable, '=');
   xml_appendable_append_char(appendable, '\"');
-  
+
   escaped_value = xml_writer_escape_string(attribute->value, true);
   xml_appendable_append(appendable, escaped_value);
   free(escaped_value);
@@ -224,8 +244,8 @@ static void xml_writer_write_element_attributes_to_appendable(XmlWriter * writer
       break;
 
     default:
-      assert(0);    
-  
+      assert(0);
+
   }
 
 
@@ -235,7 +255,7 @@ static void xml_writer_write_element_attributes_to_appendable(XmlWriter * writer
     XmlAttribute * attribute = (XmlAttribute *) any_to_ptr(list_traversal_next(traversal));
     writer_callback(appendable, attribute);
   }
-  
+
   list_destroy(attributes);
 }
 
@@ -244,12 +264,12 @@ static void xml_writer_write_element_to_appendable(XmlWriter * writer, struct Xm
 {
   xml_appendable_append_char(appendable, '<');
   xml_appendable_append(appendable, element->name);
-  
-  char 
+
+  char
     * empty_tag_end,
     * standard_tag_end,
     * close_tag_start;
-  
+
   switch (writer->style)
   {
     case XML_WRITER_STYLE_STANDARD:
@@ -268,14 +288,14 @@ static void xml_writer_write_element_to_appendable(XmlWriter * writer, struct Xm
   }
 
   xml_writer_write_element_attributes_to_appendable(writer, appendable, element);
- 
+
   if (xml_element_is_empty(element))
   {
     xml_appendable_append(appendable, empty_tag_end);
   }
   else
   {
-    
+
     if (array_list_size(element->children) == 1 && array_list_get(element->children, 0).type == ANY_TYPE_STRING)
     {
       xml_appendable_append_char(appendable, '>');
@@ -286,21 +306,21 @@ static void xml_writer_write_element_to_appendable(XmlWriter * writer, struct Xm
     else
     {
       xml_appendable_append(appendable, standard_tag_end);
-      
+
       writer->indent_depth++;
-      
+
       bool lastWasText;
       ArrayListTraversal * traversal = array_list_get_traversal(element->children);
       while (!array_list_traversal_completed(traversal))
       {
         Any child_any = array_list_traversal_next(traversal);
-        
+
         if (child_any.type == ANY_TYPE_POINTER)
         {
           XmlElement * child = (XmlElement *) any_to_ptr(child_any);
           xml_writer_print_indent_to_appendable(writer, appendable);
           xml_writer_write_element_to_appendable(writer, appendable, child);
-          
+
           lastWasText = false;
         }
         else if (child_any.type == ANY_TYPE_STRING)
@@ -308,7 +328,7 @@ static void xml_writer_write_element_to_appendable(XmlWriter * writer, struct Xm
           char * string = xml_writer_escape_string(any_to_string(child_any), false);
           xml_appendable_append(appendable, string);
           free(string);
-          
+
           lastWasText = true;
         }
         else
@@ -317,11 +337,11 @@ static void xml_writer_write_element_to_appendable(XmlWriter * writer, struct Xm
 
       if (lastWasText && writer->style != XML_WRITER_STYLE_COMPRESSED)
         xml_appendable_append_char(appendable, '\n');
-      
+
       writer->indent_depth--;
       xml_writer_print_indent_to_appendable(writer, appendable);
     }
-    
+
     xml_appendable_append(appendable, close_tag_start);
     xml_appendable_append(appendable, element->name);
     xml_appendable_append(appendable, standard_tag_end);
@@ -392,23 +412,23 @@ char * xml_writer_get_document_text(XmlWriter * writer, XmlDocument * document)
   /* HEADER */
   char header_string [1024];
   sprintf(
-    header_string, 
-    "<?xml version=\"%s\" encoding=\"%s\"?>", 
+    header_string,
+    "<?xml version=\"%s\" encoding=\"%s\"?>",
     document->version,
     document->encoding
     );
   string_builder_append(sb, header_string);
   string_builder_append_char(sb, '\n');
-  
+
   /* ROOT ELEMENT */
   struct XmlAppendable * appendable = xml_appendable_new(XML_APPENDABLE_TYPE_STRING_BUILDER, (void *) string_builder_new(), -1);
-  
+
   xml_writer_write_element_to_appendable(writer, appendable, xml_document_get_root(document));
 
   char * string = string_builder_to_string((StringBuilder *) appendable->ptr);
   string_builder_destroy((StringBuilder *) appendable->ptr);
   free(appendable);
-  
+
   return string;
 }
 
@@ -416,9 +436,9 @@ char * xml_writer_get_element_text(XmlWriter * writer, XmlElement * element)
 {
   assert(writer);
   assert(element);
-  
+
   struct XmlAppendable * appendable = xml_appendable_new(
-      XML_APPENDABLE_TYPE_STRING_BUILDER, 
+      XML_APPENDABLE_TYPE_STRING_BUILDER,
       (void *) string_builder_new(),
       -1);
 
@@ -427,7 +447,7 @@ char * xml_writer_get_element_text(XmlWriter * writer, XmlElement * element)
   char * ret = string_builder_to_string((StringBuilder *) appendable->ptr);
   string_builder_destroy((StringBuilder *) appendable->ptr);
   free(appendable);
-  
+
   return ret;
 }
 
@@ -443,25 +463,25 @@ void xml_writer_printn_document(XmlWriter * writer, XmlDocument * document, char
   assert(document);
   assert(string);
   assert(n > 0 || n == -1);
-  
+
   char header_string [1024];
   sprintf(
-    header_string, 
-    "<?xml version=\"%s\" encoding=\"%s\"?>\n", 
+    header_string,
+    "<?xml version=\"%s\" encoding=\"%s\"?>\n",
     document->version,
     document->encoding
     );
-  
+
   unsigned int header_string_length = strings_length(header_string);
   memcpy(string, header_string, header_string_length);
   string[header_string_length] = '\0';
-  
+
   struct XmlAppendable * appendable = xml_appendable_new(
       XML_APPENDABLE_TYPE_STRING,
       (void *) string,
       n);
   appendable->length = header_string_length;
-  
+
   xml_writer_write_element_to_appendable(writer, appendable, xml_document_get_root(document));
   free(appendable);
 }
@@ -477,12 +497,12 @@ void xml_writer_printn_element(XmlWriter * writer, XmlElement * element, char * 
   assert(element);
   assert(string);
   assert(n > 0 || n != -1);
-  
+
   struct XmlAppendable * appendable = xml_appendable_new(
       XML_APPENDABLE_TYPE_STRING,
       (void *) string,
       n);
-  
+
   xml_writer_write_element_to_appendable(writer, appendable, element);
   free(appendable);
 }
@@ -493,21 +513,21 @@ void xml_writer_write_document(XmlWriter * writer, XmlDocument * document, FILE 
   assert(writer);
   assert(document);
   assert(stream);
-  
+
   fprintf(
     stream,
-    "<?xml version=\"%s\" encoding=\"%s\"?>\n", 
+    "<?xml version=\"%s\" encoding=\"%s\"?>\n",
     document->version,
     document->encoding
     );
-  
+
   struct XmlAppendable * appendable = xml_appendable_new(
     XML_APPENDABLE_TYPE_STREAM,
     (void *) stream,
     -1);
-  
+
   xml_writer_write_element_to_appendable(writer, appendable, xml_document_get_root(document));
-  
+
   free(appendable);
 }
 
@@ -516,19 +536,13 @@ void xml_writer_write_element(XmlWriter * writer, XmlElement * element, FILE * s
   assert(writer);
   assert(element);
   assert(stream);
-  
+
   struct XmlAppendable * appendable = xml_appendable_new(
     XML_APPENDABLE_TYPE_STREAM,
     (void *) stream,
     -1);
-  
+
   xml_writer_write_element_to_appendable(writer, appendable, element);
-  
+
   free(appendable);
 }
-
-
-
-
-
-

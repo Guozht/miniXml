@@ -1,4 +1,24 @@
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ *                                                                         *
+ *  miniXml: a simple XML parsing library for C                            *
+ *  Copyright (C) 2017  LeqxLeqx                                           *
+ *                                                                         *
+ *  This program is free software: you can redistribute it and/or modify   *
+ *  it under the terms of the GNU General Public License as published by   *
+ *  the Free Software Foundation, either version 3 of the License, or      *
+ *  (at your option) any later version.                                    *
+ *                                                                         *
+ *  This program is distributed in the hope that it will be useful,        *
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of         *
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the          *
+ *  GNU General Public License for more details.                           *
+ *                                                                         *
+ *  You should have received a copy of the GNU General Public License      *
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.  *
+ *                                                                         *
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
+ 
 
 #include <assert.h>
 #include <baselib/baselib.h>
@@ -268,10 +288,11 @@ static void xml_reader_prepare_error_message(XmlReader * reader, bool with_token
   {
     if (with_token)
     {
-      char buffer [2048];
-      sprintf(buffer, "%s (%s)", reader->error_message, xml_token_type_get_string(xml_reader_current_token(reader)->type));
+      XmlToken * token = xml_reader_current_token(reader);
+      char * token_string = xml_token_to_string(token);
 
-      reader->returnable_error_message = strings_clone(buffer);
+      reader->returnable_error_message = strings_format("%s (%s)", reader->error_message, token_string);
+      free(token_string);
     }
     else
     {
@@ -328,8 +349,6 @@ static XmlElement * xml_reader_parse_element_imp(XmlReader * reader, bool first)
     xml_reader_set_error_message(reader, "Expected tag name identifier");
     return NULL;
   }
-
-  /* TODO: Confirm validity of tag name if neccessary */
 
   ret = xml_element_new(tag_name_token->data);
 
@@ -475,6 +494,7 @@ static XmlElement * xml_reader_parse_element_imp(XmlReader * reader, bool first)
 
   if (!strings_equals(close_identifier->data, tag_name_token->data))
   {
+    reader->tokens_current--;
     xml_reader_set_error_message(reader, "Close tag does not match open tag");
     return NULL;
   }
@@ -531,10 +551,13 @@ XmlDocument * xml_reader_parse_document(XmlReader * reader, char * data, size_t 
 
   size_t code_points_length, root_start_length;
   uint32_t * code_points, * root_start;
-  Dictionary * declaration;
+  Dictionary * declaration = NULL;
+  bool declaration_found = false;
 
   int readable_types_count = 5;
   UnicodeEncodingType readable_types [readable_types_count];
+  UnicodeEncodingType used_type = -1;
+  bool well_formed [readable_types_count];
   readable_types[0] = UNICODE_ENCODING_TYPE_UTF8;
   readable_types[1] = UNICODE_ENCODING_TYPE_UTF16BE;
   readable_types[2] = UNICODE_ENCODING_TYPE_UTF16LE;
@@ -543,15 +566,27 @@ XmlDocument * xml_reader_parse_document(XmlReader * reader, char * data, size_t 
 
   for (unsigned int k = 0; k < readable_types_count; k++)
   {
-    UnicodeEncodingType type = readable_types[k];
+    well_formed[k] = unicode_is_well_formed(readable_types[k], data, data_length);
+    if (well_formed[k] && used_type == -1)
+        used_type = readable_types[k];
+  }
 
-    if (unicode_is_well_formed(type, data, data_length))
+  if (used_type == -1)
+  {
+      xml_reader_set_error_message(reader, "Failed to determine valid encoding type");
+      xml_reader_prepare_error_message(reader, false);
+      return NULL;
+  }
+
+  for (unsigned int k = 0; k < readable_types_count && !declaration_found; k++)
+  {
+    if (well_formed[k])
     {
-      code_points = unicode_read_string(type, data, data_length, &code_points_length);
+      code_points = unicode_read_string(readable_types[k], data, data_length, &code_points_length);
       declaration = xml_reader_parse_and_confirm_declaration(
           code_points,
           code_points_length,
-          type,
+          readable_types[k],
           &root_start,
           &root_start_length
         );
@@ -562,33 +597,42 @@ XmlDocument * xml_reader_parse_document(XmlReader * reader, char * data, size_t 
         continue;
       }
 
-      size_t root_string_length;
-      char * root_string = unicode_write_string_utf8(root_start, root_start_length, &root_string_length);
-      free(code_points);
-
-      XmlElement * root = xml_reader_parse_element(reader, root_string);
-      if (!root)
-      {
-        dictionary_destroy_and_free(declaration);
-        free(root_string);
-        return NULL;
-      }
-      free(root_string);
-
-      XmlDocument * ret = xml_document_new_with_root(root);
-      xml_document_set_encoding(ret, unicode_encoding_type_to_string(type));
-      if (dictionary_has(declaration, "version"))
-        xml_document_set_version(ret, any_to_str(dictionary_get(declaration, "version")));
-
-      return ret;
+      used_type = readable_types[k];
+      declaration_found = true;
     }
   }
 
-  xml_reader_set_error_message(reader, "Failed to determine valid encoding type");
-  xml_reader_prepare_error_message(reader, false);
+  if (!declaration_found)
+  {
+    code_points = unicode_read_string(used_type, data, data_length, &code_points_length);
+    root_start = code_points;
+    root_start_length = code_points_length;
 
-  return NULL;
+  }
 
+  size_t root_string_length;
+  char * root_string = unicode_write_string_utf8(root_start, root_start_length, &root_string_length);
+  free(code_points);
+
+  XmlElement * root = xml_reader_parse_element(reader, root_string);
+  if (!root)
+  {
+    if (declaration)
+      dictionary_destroy_and_free(declaration);
+    free(root_string);
+    return NULL;
+  }
+  free(root_string);
+
+  XmlDocument * ret = xml_document_new_with_root(root);
+  xml_document_set_encoding(ret, unicode_encoding_type_to_string(used_type));
+  if (declaration != NULL && dictionary_has(declaration, "version"))
+    xml_document_set_version(ret, any_to_str(dictionary_get(declaration, "version")));
+
+  if (declaration)
+    dictionary_destroy_and_free(declaration);
+
+  return ret;
 }
 
 XmlElement * xml_reader_parse_element(XmlReader * reader, char * data)
