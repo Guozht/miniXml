@@ -18,7 +18,7 @@
  *                                                                         *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
- 
+
 #include "xml_tokenizer.h"
 
 #include <assert.h>
@@ -105,8 +105,8 @@ static bool xml_tokenizer_accept_any_letter(XmlTokenizer * tokenizer)
   char c = xml_tokenizer_character(tokenizer);
 
   if (
-    ('a' <= c && c >= 'z') ||
-    ('A' <= c && c >= 'Z') ||
+    ('a' <= c && c <= 'z') ||
+    ('A' <= c && c <= 'Z') ||
     c > 0x7F /* considers all values out of ascii-7 to be valid characters */
     )
   {
@@ -233,6 +233,31 @@ static void xml_tokenizer_parse_non_tag_data(XmlTokenizer * tokenizer)
   free(remnant);
 }
 
+static void xml_tokenizer_parse_until_end_of_comment(XmlTokenizer * tokenizer)
+{
+  bool inside = true;
+
+  do
+  {
+    if (
+      xml_tokenizer_accept(tokenizer, '-') &&
+      xml_tokenizer_accept(tokenizer, '-')
+      )
+    {
+      if (!xml_tokenizer_accept(tokenizer, '>'))
+        tokenizer->error_message = "Unexpected '--' sequence within comment";
+
+      inside = false;
+    }
+    else if (xml_tokenizer_accept(tokenizer, '\0'))
+    {
+      tokenizer->error_message = "Encountered EOF while parsing comment";
+      inside = false;
+    }
+  }
+  while (inside);
+}
+
 static void xml_tokenizer_parse_quoted_text(XmlTokenizer * tokenizer)
 {
   StringBuilder * sb = string_builder_new();
@@ -306,6 +331,18 @@ static void xml_tokenizer_parse_in_tag(XmlTokenizer * tokenizer, bool * in_tag)
     tokenizer->current--;
     xml_tokenizer_parse_identifier(tokenizer);
   }
+  else if (xml_tokenizer_accept(tokenizer, '<'))
+  {
+    if (
+      !xml_tokenizer_accept(tokenizer, '!') ||
+      !xml_tokenizer_accept(tokenizer, '-') ||
+      !xml_tokenizer_accept(tokenizer, '-')
+      )
+      tokenizer->error_message = "Unexpected character '%c'";
+    else
+      xml_tokenizer_parse_until_end_of_comment(tokenizer);
+
+  }
   else
   {
     tokenizer->error_message = "Unexpected character '%c'";
@@ -325,6 +362,8 @@ static void xml_tokenizer_parse_out_tag(XmlTokenizer * tokenizer, bool * in_tag)
     }
     else if (xml_tokenizer_accept(tokenizer, '!'))
     {
+      /* TODO: ADD OTHER TYPES OF <! STATEMENTS */
+
       if (
         !xml_tokenizer_accept(tokenizer, '-') &&
         !xml_tokenizer_accept(tokenizer, '-')
@@ -334,9 +373,7 @@ static void xml_tokenizer_parse_out_tag(XmlTokenizer * tokenizer, bool * in_tag)
       }
       else
       {
-        xml_tokenizer_add_token(tokenizer, XML_TOKEN_TYPE_START_COMMENT_TAG, NULL);
-        /* TODO: should scan until repeated '-' character */
-        assert(0);
+        xml_tokenizer_parse_until_end_of_comment(tokenizer);
       }
     }
     else

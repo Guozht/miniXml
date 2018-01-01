@@ -18,7 +18,7 @@
  *                                                                         *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
- 
+
 #ifndef __XML_TOKEN_H
 #define __XML_TOKEN_H
 
@@ -33,9 +33,6 @@ enum XmlTokenType
   XML_TOKEN_TYPE_ENTITY,
   XML_TOKEN_TYPE_QUOTED_STRING,
   XML_TOKEN_TYPE_TEXT,
-
-  XML_TOKEN_TYPE_START_COMMENT_TAG,
-  XML_TOKEN_TYPE_END_COMMENT_TAG,
 
   XML_TOKEN_TYPE_END_OF_FILE,
 };

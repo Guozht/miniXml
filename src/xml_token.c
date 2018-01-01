@@ -18,7 +18,7 @@
  *                                                                         *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
- 
+
 
 #include "xml_token.h"
 
@@ -71,11 +71,7 @@ char * xml_token_to_string(XmlToken * token)
       return strings_format("\"%s\"", token->data);
     case XML_TOKEN_TYPE_TEXT:
       return strings_clone(token->data);
-    case XML_TOKEN_TYPE_START_COMMENT_TAG:
-      return strings_clone("<!--");
-    case XML_TOKEN_TYPE_END_COMMENT_TAG:
-      return strings_clone("-->");
-
+    
     default:
       assert(0);
   }

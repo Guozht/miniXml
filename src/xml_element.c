@@ -18,7 +18,7 @@
  *                                                                         *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
- 
+
 #include <assert.h>
 #include <stdlib.h>
 #include <baselib/baselib.h>
@@ -26,6 +26,7 @@
 #include "xml_attribute.h"
 #include "xml_attribute_struct.h"
 #include "xml_writer.h"
+#include "xml_reader.h"
 
 #include "xml_element.h"
 #include "xml_element_struct.h"
@@ -63,7 +64,13 @@ XmlElement * xml_element_new(char * name)
 
 XmlElement * xml_element_parse(char * string)
 {
-  assert(0);
+  assert(string);
+
+  XmlReader * reader = xml_reader_new();
+  XmlElement * ret = xml_reader_parse_element(reader, string);
+  xml_reader_destroy(reader);
+
+  return ret;
 }
 
 
