@@ -165,8 +165,36 @@ XmlElement * xml_element_get_child(XmlElement * element, char * name)
   return NULL;
 }
 
+List * xml_element_get_children_by_name(XmlElement * element, char * name)
+{
+  assert(element);
+  assert(name);
+
+  List * ret = list_new(LIST_TYPE_LINKED_LIST);
+  ArrayListTraversal * traversal;
+  XmlElement * child;
+
+  traversal = array_list_get_traversal(element->children);
+
+  while (!array_list_traversal_completed(traversal))
+  {
+    Any child_any = array_list_traversal_next(traversal);
+    if (child_any.type != ANY_TYPE_POINTER)
+      continue;
+
+    child = (XmlElement *) any_to_ptr(child_any);
+
+    if (strings_equals(child->name, name))
+      list_add(ret, child_any);
+  }
+
+  return ret;
+}
+
 char * xml_element_get_value(XmlElement * element)
 {
+  assert(element);
+
   XmlWriter * writer;
   ArrayListTraversal * traversal;
   StringBuilder * sb;

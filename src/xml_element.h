@@ -18,7 +18,7 @@
  *                                                                         *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
- 
+
 
 #ifndef __XML_ELEMENT_H
 #define __XML_ELEMENT_H
@@ -47,7 +47,10 @@ List * xml_element_get_children(XmlElement * element);
 bool xml_element_is_empty(XmlElement * element);
 
 XmlAttribute * xml_element_get_attribute(XmlElement * element, char * name);
+
 XmlElement * xml_element_get_child(XmlElement * element, char * name);
+List * xml_element_get_children_by_name(XmlElement * element, char * name);
+
 char * xml_element_get_value(XmlElement * element);
 
 void xml_element_set_name(XmlElement * element, char * name);
