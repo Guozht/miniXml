@@ -2,7 +2,7 @@
 
 A simple and small XML parsing library for C
 
-# Notice on DTD
+# DTD
 
 At present, DTD is not supported and tags like <!DOCTYPE ... > will not be supported. However <![CDATA[ .. ]]> tags are supported
 
