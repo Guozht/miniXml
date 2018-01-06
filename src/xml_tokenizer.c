@@ -51,12 +51,35 @@ static void xml_tokenizer_forward(XmlTokenizer * tokenizer)
   if (xml_tokenizer_character(tokenizer) == '\n')
   {
     tokenizer->line++;
+    tokenizer->last_columnt_length = tokenizer->column;
     tokenizer->column = 0;
   }
   else
     tokenizer->column++;
 
   tokenizer->current++;
+}
+
+static void xml_tokenizer_backward(XmlTokenizer * tokenizer)
+{
+  tokenizer->current--;
+
+  if (tokenizer->column == 0)
+  {
+    tokenizer->column = tokenizer->last_columnt_length;
+    tokenizer->line--;
+  }
+  else
+    tokenizer->column--;
+}
+
+static void xml_tokenizer_backward_n(XmlTokenizer * tokenizer, unsigned int n)
+{
+  /* TODO: MAKE NON-STUPID */
+  for (unsigned int k = 0; k < n; k++)
+  {
+    xml_tokenizer_backward(tokenizer);
+  }
 }
 
 
@@ -116,6 +139,38 @@ static bool xml_tokenizer_accept_any_letter(XmlTokenizer * tokenizer)
   else
     return false;
 
+}
+
+static bool xml_tokenizer_accept_string(XmlTokenizer * tokenizer, char * string)
+{
+  unsigned int string_length = strings_length(string);
+
+  for (unsigned int k = 0; k < string_length; k++)
+  {
+    if (!xml_tokenizer_accept(tokenizer, string[k]))
+    {
+      xml_tokenizer_backward_n(tokenizer, k);
+      return false;
+    }
+  }
+
+  return true;
+}
+
+static bool xml_tokenizer_expect_string(XmlTokenizer * tokenizer, char * string)
+{
+  unsigned int string_length = strings_length(string);
+
+  for (unsigned int k = 0; k < string_length; k++)
+  {
+    if (!xml_tokenizer_accept(tokenizer, string[k]))
+    {
+      tokenizer->error_message = "Unexpected character '%c'";
+      return false;
+    }
+  }
+
+  return true;
 }
 
 static void xml_tokenizer_add_token(XmlTokenizer * tokenizer, enum XmlTokenType type, char * data)
@@ -192,7 +247,7 @@ static void xml_tokenizer_parse_non_tag_data(XmlTokenizer * tokenizer)
     switch (c)
     {
       case '>':
-        tokenizer->error_message = "8 Unexpected character: '%c'";
+        tokenizer->error_message = "Unexpected character: '%c'";
         break;
 
       case '&':
@@ -239,10 +294,7 @@ static void xml_tokenizer_parse_until_end_of_comment(XmlTokenizer * tokenizer)
 
   do
   {
-    if (
-      xml_tokenizer_accept(tokenizer, '-') &&
-      xml_tokenizer_accept(tokenizer, '-')
-      )
+    if (xml_tokenizer_accept_string(tokenizer, "--"))
     {
       if (!xml_tokenizer_accept(tokenizer, '>'))
         tokenizer->error_message = "Unexpected '--' sequence within comment";
@@ -254,7 +306,8 @@ static void xml_tokenizer_parse_until_end_of_comment(XmlTokenizer * tokenizer)
       tokenizer->error_message = "Encountered EOF while parsing comment";
       inside = false;
     }
-    tokenizer->current++;
+    else
+      xml_tokenizer_forward(tokenizer);
   }
   while (inside);
 }
@@ -291,12 +344,31 @@ static void xml_tokenizer_parse_quoted_text(XmlTokenizer * tokenizer)
     if (c == '\0')
     {
       string_builder_destroy(sb);
-      tokenizer->error_message = "6 Unexpected end of file";
+      tokenizer->error_message = "Unexpected end of file";
       return;
     }
   }
 
   xml_tokenizer_add_token(tokenizer, XML_TOKEN_TYPE_QUOTED_STRING, string_builder_to_string_destroy(sb));
+}
+
+static void xml_tokenizer_parse_cdata_segment(XmlTokenizer * tokenizer)
+{
+  StringBuilder * sb = string_builder_new();
+  bool in_cdata_segment = true;
+
+  while (!xml_tokenizer_accept(tokenizer, '\0') && in_cdata_segment)
+  {
+    if (xml_tokenizer_accept_string(tokenizer, "]]>"))
+      in_cdata_segment = false;
+    else
+    {
+      string_builder_append_char(sb, xml_tokenizer_character(tokenizer));
+      xml_tokenizer_forward(tokenizer);
+    }
+  }
+
+  xml_tokenizer_add_token(tokenizer, XML_TOKEN_TYPE_TEXT, string_builder_to_string_destroy(sb));
 }
 
 static void xml_tokenizer_parse_in_tag(XmlTokenizer * tokenizer, bool * in_tag)
@@ -311,7 +383,7 @@ static void xml_tokenizer_parse_in_tag(XmlTokenizer * tokenizer, bool * in_tag)
     if (xml_tokenizer_accept(tokenizer, '>'))
       xml_tokenizer_add_token(tokenizer, XML_TOKEN_TYPE_END_EMPTY_TAG, NULL);
     else
-      tokenizer->error_message = "5 Unexpected character '%c'";
+      tokenizer->error_message = "Unexpected character '%c'";
   }
   else if (xml_tokenizer_accept(tokenizer, '>'))
   {
@@ -329,23 +401,17 @@ static void xml_tokenizer_parse_in_tag(XmlTokenizer * tokenizer, bool * in_tag)
   }
   else if (xml_tokenizer_accept_any_letter(tokenizer) || xml_tokenizer_accept(tokenizer, '_'))
   {
-    tokenizer->current--;
+    xml_tokenizer_backward(tokenizer);
     xml_tokenizer_parse_identifier(tokenizer);
   }
   else if (xml_tokenizer_accept(tokenizer, '<'))
   {
-    if (
-      !xml_tokenizer_accept(tokenizer, '!') ||
-      !xml_tokenizer_accept(tokenizer, '-') ||
-      !xml_tokenizer_accept(tokenizer, '-')
-      )
-      tokenizer->error_message = "4 Unexpected character '%c'";
-    else
+    if (xml_tokenizer_expect_string(tokenizer, "!--"))
       xml_tokenizer_parse_until_end_of_comment(tokenizer);
   }
   else
   {
-    tokenizer->error_message = "2 Unexpected character '%c'";
+    tokenizer->error_message = "Unexpected character '%c'";
   }
 }
 
@@ -366,15 +432,21 @@ static void xml_tokenizer_parse_out_tag(XmlTokenizer * tokenizer, bool * in_tag)
 
       *in_tag = false;
 
-      if (
-        !xml_tokenizer_accept(tokenizer, '-') &&
-        !xml_tokenizer_accept(tokenizer, '-')
-        )
+      if (xml_tokenizer_accept(tokenizer, '-'))
       {
-        tokenizer->error_message = "1 Unexpected character '%c'";
+        if (!xml_tokenizer_accept(tokenizer, '-'))
+          tokenizer->error_message = "Unexpected character '%c'";
+        else
+          xml_tokenizer_parse_until_end_of_comment(tokenizer);
+
+      }
+      else if (xml_tokenizer_accept(tokenizer, '['))
+      {
+        if (xml_tokenizer_expect_string(tokenizer, "CDATA["))
+          xml_tokenizer_parse_cdata_segment(tokenizer);
       }
       else
-        xml_tokenizer_parse_until_end_of_comment(tokenizer);
+        tokenizer->error_message = "Unexpected character '%c'";
     }
     else
     {
@@ -459,7 +531,7 @@ LinkedList * xml_tokenizer_tokenize_declaration(XmlTokenizer * tokenizer)
 
     if (xml_tokenizer_accept_any_letter(tokenizer) || xml_tokenizer_accept(tokenizer, '_'))
     {
-      tokenizer->current--;
+      xml_tokenizer_backward(tokenizer);
       xml_tokenizer_parse_identifier(tokenizer);
     }
     else if (xml_tokenizer_accept(tokenizer, '='))
@@ -467,7 +539,7 @@ LinkedList * xml_tokenizer_tokenize_declaration(XmlTokenizer * tokenizer)
     else if (xml_tokenizer_accept(tokenizer, '\"'))
       xml_tokenizer_parse_quoted_text(tokenizer);
     else
-      tokenizer->error_message = "3 Unexpected character: %c";
+      tokenizer->error_message = "Unexpected character: %c";
 
     if (tokenizer->error_message)
       return NULL;

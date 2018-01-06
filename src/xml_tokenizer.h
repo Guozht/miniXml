@@ -18,7 +18,7 @@
  *                                                                         *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
- 
+
 
 #ifndef __XML_TOKENIZER_H
 #define __XML_TOKENIZER_H
@@ -36,7 +36,8 @@ struct XmlTokenizer
     string_length,
     current,
     line,
-    column;
+    column,
+    last_columnt_length;
   LinkedList * tokens;
 };
 typedef struct XmlTokenizer XmlTokenizer;

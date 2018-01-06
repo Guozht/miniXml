@@ -22,7 +22,7 @@
 #define __MINI_XML_H
 
 
-#define MINI_XML_VERSION "0.1.4"
+#define MINI_XML_VERSION "0.1.5"
 
 
 #include "xml_attribute.h"
