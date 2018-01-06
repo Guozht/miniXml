@@ -2,6 +2,10 @@
 
 A simple and small XML parsing library for C
 
+# Notice on DTD
+
+At present, DTD is not supported and tags like <!DOCTYPE ... > will not be supported. However <![CDATA[ .. ]]> tags are supported
+
 # Dependencies
 
 This library relies upon `baselib`, which is available for download and installation at `https://github.com/LeqxLeqx/baselib`. `baselib`
