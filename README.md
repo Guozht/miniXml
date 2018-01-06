@@ -4,7 +4,7 @@ A simple and small XML parsing library for C
 
 # DTD
 
-At present, DTD is not supported and tags like <!DOCTYPE ... > will not be supported. However <![CDATA[ .. ]]> tags are supported
+At present, DTD is not supported and tags like `<!DOCTYPE ... >' will not be supported. However `<![CDATA[ .. ]]>' tags are supported
 
 # Dependencies
 
