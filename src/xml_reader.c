@@ -18,7 +18,7 @@
  *                                                                         *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
- 
+
 
 #include <assert.h>
 #include <baselib/baselib.h>
@@ -74,7 +74,7 @@ static void xml_reader_unload_entities(XmlReader * reader)
   dictionary_destroy_and_free(reader->entities);
 }
 
-static uint32_t * xml_reader_find_declaration(uint32_t * data, size_t size, size_t * ret_size)
+static uint32_t * xml_reader_find_declaration(uint32_t * data, size_t size, size_t * ret_size, size_t * start_offset)
 {
   uint32_t * ret;
   size_t ret_index;
@@ -103,6 +103,7 @@ static uint32_t * xml_reader_find_declaration(uint32_t * data, size_t size, size
           )
       {
         *ret_size = k - ret_index;
+        *start_offset = ret_index;
         return ret;
       }
     }
@@ -212,18 +213,19 @@ static Dictionary * xml_reader_parse_and_confirm_declaration(
   )
 {
   uint32_t * declaration;
-  size_t declaration_length;
+  size_t declaration_length, declaration_offset;
 
   declaration = xml_reader_find_declaration(
         code_points,
         code_points_length,
-        &declaration_length
+        &declaration_length,
+        &declaration_offset
       );
   if (!declaration)
     return NULL;
 
   *root_start = &declaration[declaration_length + 2];
-  *root_start_length = code_points_length - declaration_length - 2 -  (unsigned) (declaration - code_points) / sizeof(uint32_t);
+  *root_start_length = code_points_length - declaration_length - declaration_offset - 2;
 
   Dictionary * dic = xml_reader_parse_declaration(
       declaration,
