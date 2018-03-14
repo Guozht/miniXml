@@ -116,7 +116,7 @@ static uint32_t * xml_reader_find_declaration(uint32_t * data, size_t size, size
 static Dictionary * xml_reader_parse_declaration(
     uint32_t * declaration,
     size_t declaration_length,
-    UnicodeEncodingType encoding_type
+    Charset encoding_type
   )
 {
   size_t declaration_string_length;
@@ -183,11 +183,11 @@ static Dictionary * xml_reader_parse_declaration(
   return ret;
 }
 
-static bool xml_reader_encoding_matches(Dictionary * dec, UnicodeEncodingType type)
+static bool xml_reader_encoding_matches(Dictionary * dec, Charset type)
 {
   char
     * declared_encoding = any_to_str(dictionary_get(dec, "encoding")),
-    * detected_encoding = unicode_encoding_type_to_string(type);
+    * detected_encoding = charset_to_string(type);
 
   if (strings_equals_ignore_case(declared_encoding, detected_encoding))
     return true;
@@ -207,7 +207,7 @@ static bool xml_reader_encoding_matches(Dictionary * dec, UnicodeEncodingType ty
 static Dictionary * xml_reader_parse_and_confirm_declaration(
     uint32_t * code_points,
     size_t code_points_length,
-    UnicodeEncodingType type,
+    Charset type,
     uint32_t ** root_start,
     size_t * root_start_length
   )
@@ -557,14 +557,14 @@ XmlDocument * xml_reader_parse_document(XmlReader * reader, char * data, size_t 
   bool declaration_found = false;
 
   int readable_types_count = 5;
-  UnicodeEncodingType readable_types [readable_types_count];
-  UnicodeEncodingType used_type = -1;
+  Charset readable_types [readable_types_count];
+  Charset used_type = -1;
   bool well_formed [readable_types_count];
-  readable_types[0] = UNICODE_ENCODING_TYPE_UTF8;
-  readable_types[1] = UNICODE_ENCODING_TYPE_UTF16BE;
-  readable_types[2] = UNICODE_ENCODING_TYPE_UTF16LE;
-  readable_types[3] = UNICODE_ENCODING_TYPE_UTF32BE;
-  readable_types[4] = UNICODE_ENCODING_TYPE_UTF32LE;
+  readable_types[0] = CHARSET_UTF8;
+  readable_types[1] = CHARSET_UTF16BE;
+  readable_types[2] = CHARSET_UTF16LE;
+  readable_types[3] = CHARSET_UTF32BE;
+  readable_types[4] = CHARSET_UTF32LE;
 
   for (unsigned int k = 0; k < readable_types_count; k++)
   {
@@ -627,7 +627,7 @@ XmlDocument * xml_reader_parse_document(XmlReader * reader, char * data, size_t 
   free(root_string);
 
   XmlDocument * ret = xml_document_new_with_root(root);
-  xml_document_set_encoding(ret, unicode_encoding_type_to_string(used_type));
+  xml_document_set_encoding(ret, charset_to_string(used_type));
   if (declaration != NULL && dictionary_has(declaration, "version"))
     xml_document_set_version(ret, any_to_str(dictionary_get(declaration, "version")));
 
