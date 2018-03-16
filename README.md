@@ -13,7 +13,7 @@ itself relies upon the pthread libraries in the GNU C standard libraries.
 
 # Compiling the Library
 
-To compile and install this library, first run `./baselib.sh` and then `sudo ./install.sh`.
+To compile and install this library, first run `make` and then `sudo ./install.sh`.
 
 # Compiling Against the Library
 
