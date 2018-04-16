@@ -198,6 +198,7 @@ static void xml_tokenizer_parse_identifier(XmlTokenizer * tokenizer)
     while (
       xml_tokenizer_accept_any_letter(tokenizer) ||
       xml_tokenizer_accept_range(tokenizer, '0', '9') ||
+      xml_tokenizer_accept(tokenizer, '-') ||
       xml_tokenizer_accept(tokenizer, '_') ||
       xml_tokenizer_accept(tokenizer, '.') ||
       xml_tokenizer_accept(tokenizer, ':')

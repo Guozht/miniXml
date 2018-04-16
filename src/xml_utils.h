@@ -18,19 +18,14 @@
  *                                                                         *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-#ifndef __MINI_XML_H
-#define __MINI_XML_H
+#ifndef __XML_UTILS_H
+#define __XML_UTILS_H
+
+#include <stdbool.h>
 
 
-#define MINI_XML_VERSION "0.2.2"
-
-
-#include "xml_attribute.h"
-#include "xml_document.h"
-#include "xml_element.h"
-#include "xml_reader.h"
-#include "xml_tokenizer.h"
-#include "xml_writer.h"
+char * xml_utils_escape_string(char * str, bool attribute);
 
 
 #endif
+

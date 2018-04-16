@@ -18,19 +18,54 @@
  *                                                                         *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-#ifndef __MINI_XML_H
-#define __MINI_XML_H
+#include <baselib/baselib.h>
+#include <stdbool.h>
 
 
-#define MINI_XML_VERSION "0.2.2"
+#include "xml_utils.h"
 
+char * xml_utils_escape_string(char * str, bool attribute)
+{
+  StringBuilder * sb = string_builder_new();
+  unsigned int top = 0;
 
-#include "xml_attribute.h"
-#include "xml_document.h"
-#include "xml_element.h"
-#include "xml_reader.h"
-#include "xml_tokenizer.h"
-#include "xml_writer.h"
+  char c;
+  while (str[top] != '\0')
+  {
+    c = str[top++];
 
+    switch (c)
+    {
 
-#endif
+      case '&':
+        string_builder_append(sb, "&amp;");
+        break;
+      case '<':
+        string_builder_append(sb, "&lt;");
+        break;
+      case '>':
+        string_builder_append(sb, "&gt;");
+        break;
+      case '\"':
+        if (attribute)
+          string_builder_append(sb, "&quot;");
+        else
+          string_builder_append_char(sb, '\"');
+        break;
+      case '\'':
+        if (attribute)
+          string_builder_append(sb, "&apos;");
+        else
+          string_builder_append_char(sb, '\'');
+        break;
+
+      default:
+        string_builder_append_char(sb, c);
+        break;
+
+    }
+
+  }
+
+  return string_builder_to_string_destroy(sb);
+}

@@ -34,6 +34,7 @@
 #include "xml_document_struct.h"
 #include "xml_element.h"
 #include "xml_element_struct.h"
+#include "xml_utils.h"
 
 
 #include "xml_writer.h"
@@ -152,52 +153,6 @@ static void xml_appendable_append_char(struct XmlAppendable * appendable, char c
 
 
 
-static char * xml_writer_escape_string(char * str, bool attribute)
-{
-  StringBuilder * sb = string_builder_new();
-  unsigned int top = 0;
-
-  char c;
-  while (str[top] != '\0')
-  {
-    c = str[top++];
-
-    switch (c)
-    {
-
-      case '&':
-        string_builder_append(sb, "&amp;");
-        break;
-      case '<':
-        string_builder_append(sb, "&lt;");
-        break;
-      case '>':
-        string_builder_append(sb, "&gt;");
-        break;
-      case '\"':
-        if (attribute)
-          string_builder_append(sb, "&quot;");
-        else
-          string_builder_append_char(sb, '\"');
-        break;
-      case '\'':
-        if (attribute)
-          string_builder_append(sb, "&apos;");
-        else
-          string_builder_append_char(sb, '\'');
-        break;
-
-      default:
-        string_builder_append_char(sb, c);
-        break;
-
-    }
-
-  }
-
-  return string_builder_to_string_destroy(sb);
-}
-
 static void xml_writer_print_indent_to_appendable(XmlWriter * writer, struct XmlAppendable * appendable)
 {
   if (writer->style == XML_WRITER_STYLE_COMPRESSED)
@@ -218,7 +173,7 @@ static void xml_writer_standard_write_attribute_callback(struct XmlAppendable * 
   xml_appendable_append_char(appendable, '=');
   xml_appendable_append_char(appendable, '\"');
 
-  escaped_value = xml_writer_escape_string(attribute->value, true);
+  escaped_value = xml_utils_escape_string(attribute->value, true);
   xml_appendable_append(appendable, escaped_value);
   free(escaped_value);
 
@@ -299,7 +254,7 @@ static void xml_writer_write_element_to_appendable(XmlWriter * writer, struct Xm
     if (array_list_size(element->children) == 1 && array_list_get(element->children, 0).type == ANY_TYPE_STRING)
     {
       xml_appendable_append_char(appendable, '>');
-      char * string = xml_writer_escape_string(any_to_string(array_list_get(element->children, 0)), false);
+      char * string = xml_utils_escape_string(any_to_string(array_list_get(element->children, 0)), false);
       xml_appendable_append(appendable, string);
       free(string);
     }
@@ -325,7 +280,7 @@ static void xml_writer_write_element_to_appendable(XmlWriter * writer, struct Xm
         }
         else if (child_any.type == ANY_TYPE_STRING)
         {
-          char * string = xml_writer_escape_string(any_to_string(child_any), false);
+          char * string = xml_utils_escape_string(any_to_string(child_any), false);
           xml_appendable_append(appendable, string);
           free(string);
 

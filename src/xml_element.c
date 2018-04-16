@@ -27,6 +27,7 @@
 #include "xml_attribute_struct.h"
 #include "xml_writer.h"
 #include "xml_reader.h"
+#include "xml_utils.h"
 
 #include "xml_element.h"
 #include "xml_element_struct.h"
@@ -108,6 +109,24 @@ List * xml_element_get_children(XmlElement * element)
   return (List *) array_list_clone(element->children);
 }
 
+List * xml_element_get_child_elements(XmlElement * element)
+{
+  assert(element);
+
+  Any child_any;
+  ArrayList * ret = array_list_new();
+  ArrayListTraversal *  trav = array_list_get_traversal(element->children);
+
+  while (!array_list_traversal_completed(trav))
+  {
+    child_any = array_list_traversal_next(trav);
+    if (child_any.type == ANY_TYPE_POINTER)
+      array_list_add(ret, child_any);
+  }
+
+  return (List *) ret;
+}
+
 bool xml_element_is_empty(XmlElement * element)
 {
   assert(element);
@@ -139,7 +158,11 @@ XmlAttribute * xml_element_get_attribute(XmlElement * element, char * name)
   return NULL;
 }
 
-XmlElement * xml_element_get_child(XmlElement * element, char * name)
+static XmlElement * xml_element_get_child_imp(
+    XmlElement * element,
+    char * name,
+    bool (*equals_callback)(char *, char *)
+  )
 {
   assert(element);
   assert(name);
@@ -154,7 +177,7 @@ XmlElement * xml_element_get_child(XmlElement * element, char * name)
       continue;
     child = (XmlElement *) any_to_ptr(child_any);
 
-    if (strings_equals(child->name, name))
+    if (equals_callback(child->name, name))
     {
       array_list_traversal_destroy(traversal);
 
@@ -165,7 +188,22 @@ XmlElement * xml_element_get_child(XmlElement * element, char * name)
   return NULL;
 }
 
-List * xml_element_get_children_by_name(XmlElement * element, char * name)
+XmlElement * xml_element_get_child(XmlElement * element, char * name)
+{
+  return xml_element_get_child_imp(element, name, strings_equals);
+}
+
+XmlElement * xml_element_get_child_ignore_case(XmlElement * element, char * name)
+{
+  return xml_element_get_child_imp(element, name, strings_equals_ignore_case);
+}
+
+
+static List * xml_element_get_children_by_name_imp(
+    XmlElement * element,
+    char * name,
+    bool (*equals_callback)(char *, char *)
+  )
 {
   assert(element);
   assert(name);
@@ -184,11 +222,28 @@ List * xml_element_get_children_by_name(XmlElement * element, char * name)
 
     child = (XmlElement *) any_to_ptr(child_any);
 
-    if (strings_equals(child->name, name))
+    if (equals_callback(child->name, name))
       list_add(ret, child_any);
   }
 
   return ret;
+}
+
+List * xml_element_get_children_by_name(XmlElement * element, char * name)
+{
+  return xml_element_get_children_by_name_imp(element, name, strings_equals);
+}
+
+List * xml_element_get_children_by_name_ignore_case(
+    XmlElement * element,
+    char * name
+  )
+{
+  return xml_element_get_children_by_name_imp(
+      element,
+      name,
+      strings_equals_ignore_case
+    );
 }
 
 char * xml_element_get_value(XmlElement * element)
@@ -210,7 +265,7 @@ char * xml_element_get_value(XmlElement * element)
     Any child_any = array_list_traversal_next(traversal);
     if (child_any.type == ANY_TYPE_STRING)
     {
-      string_builder_append(sb, any_to_string(child_any));
+      string_builder_append_free(sb, xml_utils_escape_string(any_to_string(child_any), true));
     }
     else if (child_any.type == ANY_TYPE_POINTER)
     {
@@ -271,6 +326,17 @@ void xml_element_add_child(XmlElement * element, XmlElement * child)
   assert(child);
 
   array_list_add(element->children, ptr_to_any(child));
+}
+
+void xml_element_add_text(XmlElement * element, char * text)
+{
+  assert(element);
+  assert(text);
+
+  if (strings_is_empty(text))
+    return;
+
+  array_list_add(element->children, str_to_any(text));
 }
 
 
