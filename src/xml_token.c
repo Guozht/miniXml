@@ -71,6 +71,9 @@ char * xml_token_to_string(XmlToken * token)
       return strings_format("\"%s\"", token->data);
     case XML_TOKEN_TYPE_TEXT:
       return strings_clone(token->data);
+
+    case XML_TOKEN_TYPE_END_OF_FILE:
+      return strings_clone("EOD");
     
     default:
       assert(0);

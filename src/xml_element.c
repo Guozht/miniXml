@@ -79,7 +79,10 @@ void xml_element_destroy(XmlElement * element)
 {
   assert(element);
 
-  array_list_destroy_and(element->attributes, xml_element_destroy_attribute_any);
+  array_list_destroy_and(
+        element->attributes,
+        xml_element_destroy_attribute_any
+      );
   array_list_destroy_and(element->children, xml_element_destroy_child_any);
   free(element->name);
 

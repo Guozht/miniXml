@@ -30,6 +30,7 @@
 #include "xml_element_struct.h"
 #include "xml_tokenizer.h"
 #include "xml_token.h"
+#include "xml_utils.h"
 
 #include "xml_reader.h"
 
@@ -65,7 +66,7 @@ static void xml_reader_load_default_entities(XmlReader * reader)
 static void xml_reader_unload_entities(XmlReader * reader)
 {
 
-  dictionary_remove(reader->entities, "lt"); /* remove as not to free static data */
+  dictionary_remove(reader->entities, "lt");
   dictionary_remove(reader->entities, "gt");
   dictionary_remove(reader->entities, "quot");
   dictionary_remove(reader->entities, "apos");
@@ -74,7 +75,29 @@ static void xml_reader_unload_entities(XmlReader * reader)
   dictionary_destroy_and_free(reader->entities);
 }
 
-static uint32_t * xml_reader_find_declaration(uint32_t * data, size_t size, size_t * ret_size, size_t * start_offset)
+static char * xml_reader_expand_entity(XmlReader * reader, char * entity_data)
+{
+  Any value;
+  if (strings_starts_with(entity_data, "#x"))
+    return xml_utils_parse_integer_entity(&entity_data[2], 16);
+  else if (strings_starts_with(entity_data, "#"))
+    return xml_utils_parse_integer_entity(&entity_data[1], 10);
+  else
+  {
+    if (!dictionary_try_get(reader->entities, entity_data, &value))
+      return NULL;
+    return strings_clone(any_to_str(value));
+
+  }
+}
+
+
+static uint32_t * xml_reader_find_declaration(
+    uint32_t * data,
+    size_t size,
+    size_t * ret_size,
+    size_t * start_offset
+    )
 {
   uint32_t * ret;
   size_t ret_index;
@@ -134,7 +157,10 @@ static Dictionary * xml_reader_parse_declaration(
     return NULL;
   }
 
-  post_xml_string = strings_suffix(declaration_string, strings_length(declaration_string) - 4);
+  post_xml_string = strings_suffix(
+        declaration_string,
+        strings_length(declaration_string) - 4
+      );
   free(declaration_string);
 
   XmlTokenizer * tokenizer = xml_tokenizer_new(post_xml_string);
@@ -142,7 +168,11 @@ static Dictionary * xml_reader_parse_declaration(
 
   free(post_xml_string);
 
-  if (list == NULL || linked_list_size(list) % 3 != 0 || linked_list_size(list) == 0)
+  if (
+      list == NULL ||
+      linked_list_size(list) % 3 != 0 ||
+      linked_list_size(list) == 0
+      )
   {
     xml_tokenizer_destroy(tokenizer); /* FREES TOKEN LIST */
     return NULL;
@@ -185,23 +215,14 @@ static Dictionary * xml_reader_parse_declaration(
 
 static bool xml_reader_encoding_matches(Dictionary * dec, Charset type)
 {
-  char
-    * declared_encoding = any_to_str(dictionary_get(dec, "encoding")),
-    * detected_encoding = charset_to_string(type);
+  Charset declared = charset_parse_name(
+      any_to_str(dictionary_get(dec, "encoding"))
+      );
 
-  if (strings_equals_ignore_case(declared_encoding, detected_encoding))
-    return true;
-
-  if (
-    !strings_ends_with_ignore_case(detected_encoding, "BE") &&
-    !strings_ends_with_ignore_case(detected_encoding, "LE")
-    )
+  if (declared == CHARSET_NONE)
     return false;
 
-  if (strings_length(detected_encoding) - 2 != strings_length(declared_encoding))
-    return false;
-
-  return strings_starts_with_ignore_case(detected_encoding, declared_encoding);
+  return declared == type || (CHARSET_ENDIANNESS_MASK & type) == declared;
 }
 
 static Dictionary * xml_reader_parse_and_confirm_declaration(
@@ -225,7 +246,10 @@ static Dictionary * xml_reader_parse_and_confirm_declaration(
     return NULL;
 
   *root_start = &declaration[declaration_length + 2];
-  *root_start_length = code_points_length - declaration_length - declaration_offset - 2;
+  *root_start_length = code_points_length -
+                       declaration_length -
+                       declaration_offset -
+                       2;
 
   Dictionary * dic = xml_reader_parse_declaration(
       declaration,
@@ -254,10 +278,8 @@ static Dictionary * xml_reader_parse_and_confirm_declaration(
 
 static void xml_reader_reset(XmlReader * reader)
 {
-  if (reader->error_message)
-    free(reader->error_message);
-  if (reader->returnable_error_message)
-    free(reader->returnable_error_message);
+  free(reader->error_message);
+  free(reader->returnable_error_message);
 
   reader->error_message = NULL;
   reader->returnable_error_message = NULL;
@@ -267,9 +289,13 @@ static void xml_reader_reset(XmlReader * reader)
 static XmlToken * xml_reader_current_token(XmlReader * reader)
 {
   if (reader->tokens_current >= list_size(reader->tokens))
-    return (XmlToken *) any_to_ptr(list_get(reader->tokens, list_size(reader->tokens) - 1));
+    return (XmlToken *) any_to_ptr(
+             list_get(reader->tokens, list_size(reader->tokens) - 1)
+             );
   else
-    return (XmlToken *) any_to_ptr(list_get(reader->tokens, reader->tokens_current));
+    return (XmlToken *) any_to_ptr(
+             list_get(reader->tokens, reader->tokens_current)
+             );
 }
 
 static bool xml_reader_accept(XmlReader * reader, enum XmlTokenType type)
@@ -284,7 +310,10 @@ static bool xml_reader_accept(XmlReader * reader, enum XmlTokenType type)
     return false;
 }
 
-static void xml_reader_prepare_error_message(XmlReader * reader, bool with_token)
+static void xml_reader_prepare_error_message(
+    XmlReader * reader,
+    bool with_token
+    )
 {
   if (reader->error_message)
   {
@@ -293,7 +322,11 @@ static void xml_reader_prepare_error_message(XmlReader * reader, bool with_token
       XmlToken * token = xml_reader_current_token(reader);
       char * token_string = xml_token_to_string(token);
 
-      reader->returnable_error_message = strings_format("%s (%s)", reader->error_message, token_string);
+      reader->returnable_error_message = strings_format(
+            "%s (%s)",
+            reader->error_message,
+            token_string
+          );
       free(token_string);
     }
     else
@@ -308,7 +341,8 @@ static void xml_reader_prepare_error_message(XmlReader * reader, bool with_token
 static XmlElement * xml_reader_parse_element_imp(XmlReader * reader, bool first)
 {
   StringBuilder
-    * attrib_sb;
+    * attrib_sb,
+    * text_sb;
   XmlElement
     * ret,
     * child;
@@ -316,12 +350,13 @@ static XmlElement * xml_reader_parse_element_imp(XmlReader * reader, bool first)
     * tag_name_token,
     * attrib_name_token,
     * attrib_value_token,
-    * pre_token
-    ;
+    * pre_token ;
   bool
     in_token_loop,
     in_attrib_loop,
     tag_empty;
+  char
+    * expanded_entity;
 
   if (first)
   {
@@ -405,8 +440,12 @@ static XmlElement * xml_reader_parse_element_imp(XmlReader * reader, bool first)
       attrib_value_token = xml_reader_current_token(reader);
       if (xml_reader_accept(reader, XML_TOKEN_TYPE_ENTITY))
       {
-        Any value;
-        if (!dictionary_try_get(reader->entities, attrib_value_token->data, &value))
+        char * entity_expansion = xml_reader_expand_entity(
+               reader,
+               attrib_value_token->data
+             );
+
+        if (!entity_expansion)
         {
           reader->tokens_current--;
           xml_reader_set_error_message(reader, "Unknown entity");
@@ -415,7 +454,7 @@ static XmlElement * xml_reader_parse_element_imp(XmlReader * reader, bool first)
           return NULL;
         }
 
-        string_builder_append(attrib_sb, any_to_str(value));
+        string_builder_append_free(attrib_sb, entity_expansion);
       }
       else
         in_attrib_loop = false;
@@ -436,8 +475,7 @@ static XmlElement * xml_reader_parse_element_imp(XmlReader * reader, bool first)
     return ret;
 
 
-  Any entity_value_any;
-  StringBuilder * text_sb = string_builder_new();
+  text_sb = string_builder_new();
   while (
     !xml_reader_accept(reader, XML_TOKEN_TYPE_START_END_TAG)
     )
@@ -452,14 +490,15 @@ static XmlElement * xml_reader_parse_element_imp(XmlReader * reader, bool first)
         reader->tokens_current++;
         break;
       case XML_TOKEN_TYPE_ENTITY:
-        if (!dictionary_try_get(reader->entities, current->data, &entity_value_any))
+        expanded_entity = xml_reader_expand_entity(reader, current->data);
+        if (!expanded_entity)
         {
           xml_reader_set_error_message(reader, "Unknown entity");
           xml_element_destroy(ret);
           string_builder_destroy(text_sb);
           return NULL;
         }
-        string_builder_append(text_sb, any_to_str(entity_value_any));
+        string_builder_append_free(text_sb, expanded_entity);
         reader->tokens_current++;
         break;
       case XML_TOKEN_TYPE_START_TAG:
@@ -511,6 +550,27 @@ static XmlElement * xml_reader_parse_element_imp(XmlReader * reader, bool first)
   return ret;
 }
 
+static int xml_reader_get_types(Charset * types)
+{
+  List * list;
+  ListTraversal * trav;
+  unsigned int ret = 0;
+
+  list = codec_supported_charsets();
+  list_remove(list, int_to_any(CHARSET_UTF16)); /* handled differently */
+  list_remove(list, int_to_any(CHARSET_UTF32)); /* handled differently */
+
+  trav = list_get_traversal(list);
+  while (!list_traversal_completed(trav))
+  {
+    types[ret++] = (Charset) list_traversal_next_int(trav);
+  }
+
+  list_destroy(list);
+
+  return ret;
+}
+
 
 
 
@@ -529,10 +589,8 @@ void xml_reader_destroy(XmlReader * reader)
 {
   assert(reader);
 
-  if (reader->error_message)
-    free(reader->error_message);
-  if (reader->returnable_error_message)
-    free(reader->returnable_error_message);
+  free(reader->error_message);
+  free(reader->returnable_error_message);
 
   free(reader);
 }
@@ -545,46 +603,61 @@ char * xml_reader_get_error_message(XmlReader * reader)
   return strings_clone(reader->returnable_error_message);
 }
 
-XmlDocument * xml_reader_parse_document(XmlReader * reader, char * data, size_t data_length)
+XmlDocument * xml_reader_parse_document(
+    XmlReader * reader,
+    char * data,
+    size_t data_length
+    )
 {
   assert(reader);
   assert(data);
   assert(data_length > 0);
 
+  Codec * codec;
   size_t code_points_length, root_start_length;
   uint32_t * code_points, * root_start;
   Dictionary * declaration = NULL;
   bool declaration_found = false;
 
-  int readable_types_count = 5;
-  Charset readable_types [readable_types_count];
+  Charset readable_types [0xFF]; /* SHOULD BE BIG ENOUGH */
+  int readable_types_count = xml_reader_get_types(readable_types);
   Charset used_type = -1;
   bool well_formed [readable_types_count];
-  readable_types[0] = CHARSET_UTF8;
-  readable_types[1] = CHARSET_UTF16BE;
-  readable_types[2] = CHARSET_UTF16LE;
-  readable_types[3] = CHARSET_UTF32BE;
-  readable_types[4] = CHARSET_UTF32LE;
 
   for (unsigned int k = 0; k < readable_types_count; k++)
   {
-    well_formed[k] = unicode_is_well_formed(readable_types[k], data, data_length);
+    codec = codec_new(readable_types[k]);
+    assert(codec);
+    well_formed[k] = codec_is_well_formed(codec, data, data_length);
+
     if (well_formed[k] && used_type == -1)
         used_type = readable_types[k];
+
+    codec_destroy(codec);
   }
 
   if (used_type == -1)
   {
-      xml_reader_set_error_message(reader, "Failed to determine valid encoding type");
+      xml_reader_set_error_message(
+          reader,
+          "Failed to determine valid encoding type"
+          );
       xml_reader_prepare_error_message(reader, false);
       return NULL;
   }
 
-  for (unsigned int k = 0; k < readable_types_count && !declaration_found; k++)
+  for (unsigned int k = 0; k < readable_types_count &&
+                           !declaration_found; k++)
   {
     if (well_formed[k])
     {
-      code_points = unicode_read_string(readable_types[k], data, data_length, &code_points_length);
+      codec = codec_new(readable_types[k]);
+      code_points = codec_read_string(
+          codec,
+          data,
+          data_length,
+          &code_points_length
+        );
       declaration = xml_reader_parse_and_confirm_declaration(
           code_points,
           code_points_length,
@@ -592,6 +665,7 @@ XmlDocument * xml_reader_parse_document(XmlReader * reader, char * data, size_t 
           &root_start,
           &root_start_length
         );
+      codec_destroy(codec);
 
       if (declaration == NULL)
       {
@@ -606,14 +680,24 @@ XmlDocument * xml_reader_parse_document(XmlReader * reader, char * data, size_t 
 
   if (!declaration_found)
   {
-    code_points = unicode_read_string(used_type, data, data_length, &code_points_length);
+    codec = codec_new(used_type);
+    code_points = codec_read_string(
+        codec,
+        data,
+        data_length,
+        &code_points_length
+      );
     root_start = code_points;
     root_start_length = code_points_length;
-
+    free(codec);
   }
 
   size_t root_string_length;
-  char * root_string = unicode_write_string_utf8(root_start, root_start_length, &root_string_length);
+  char * root_string = unicode_write_string_utf8(
+      root_start,
+      root_start_length,
+      &root_string_length
+    );
   free(code_points);
 
   XmlElement * root = xml_reader_parse_element(reader, root_string);
@@ -628,8 +712,14 @@ XmlDocument * xml_reader_parse_document(XmlReader * reader, char * data, size_t 
 
   XmlDocument * ret = xml_document_new_with_root(root);
   xml_document_set_encoding(ret, charset_to_string(used_type));
-  if (declaration != NULL && dictionary_has(declaration, "version"))
-    xml_document_set_version(ret, any_to_str(dictionary_get(declaration, "version")));
+  if (declaration != NULL &&
+      dictionary_has(declaration, "version"))
+  {
+    xml_document_set_version(
+        ret,
+        any_to_str(dictionary_get(declaration, "version"))
+      );
+  }
 
   if (declaration)
     dictionary_destroy_and_free(declaration);
@@ -653,13 +743,22 @@ XmlElement * xml_reader_parse_element(XmlReader * reader, char * data)
     char buffer [1024];
     if (strings_contains_string(tokenizer->error_message, "%c"))
     {
-      char * concat = strings_concat(tokenizer->error_message, " [%02x] (line: %d, column: %d)");
+      char * concat = strings_concat(
+          tokenizer->error_message,
+          " [%02x] (line: %d, column: %d)"
+        );
       char c = xml_tokenizer_character(tokenizer);
       sprintf(buffer, concat, c, c, tokenizer->line, tokenizer->column);
       free(concat);
     }
     else
-      sprintf(buffer, "%s (line: %d, column: %d)", tokenizer->error_message, tokenizer->line, tokenizer->column);
+      sprintf(
+          buffer,
+          "%s (line: %d, column: %d)",
+          tokenizer->error_message,
+          tokenizer->line,
+          tokenizer->column
+        );
 
 
     xml_reader_set_error_message(reader, buffer);
@@ -676,13 +775,19 @@ XmlElement * xml_reader_parse_element(XmlReader * reader, char * data)
     xml_reader_load_default_entities(reader);
 
     /* Add end of file token */
-    list_add(reader->tokens, ptr_to_any(xml_token_new(XML_TOKEN_TYPE_END_OF_FILE, NULL)));
+    list_add(
+        reader->tokens,
+        ptr_to_any(xml_token_new(XML_TOKEN_TYPE_END_OF_FILE, NULL))
+      );
 
     XmlElement * element = xml_reader_parse_element_imp(reader, true);
 
     xml_reader_prepare_error_message(reader, true);
 
-    list_destroy_and_user_free(reader->tokens, (void (*)(void *)) xml_token_destroy);
+    list_destroy_and_user_free(
+        reader->tokens,
+        (void (*)(void *)) xml_token_destroy
+      );
     xml_reader_unload_entities(reader);
 
     return element;

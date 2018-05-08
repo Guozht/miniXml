@@ -20,9 +20,11 @@
 
 #include <baselib/baselib.h>
 #include <stdbool.h>
-
+#include <stdint.h>
+#include <stdlib.h>
 
 #include "xml_utils.h"
+
 
 char * xml_utils_escape_string(char * str, bool attribute)
 {
@@ -69,3 +71,30 @@ char * xml_utils_escape_string(char * str, bool attribute)
 
   return string_builder_to_string_destroy(sb);
 }
+
+char * xml_utils_parse_integer_entity(char * entity, unsigned int base)
+{
+  unsigned long long value;
+  uint32_t code_point;
+  char * end, buffer [0x0F];
+
+  value = strtoull(entity, &end, base);
+  if (value == 0 || end[0] != '\0')
+    return NULL;
+
+  if (value > 0xFFFFFFFFL) /* cast will truncate */
+    return NULL;
+
+  code_point = (uint32_t) value;
+
+  if (!unicode_is_valid_code_point(code_point))
+    return NULL;
+
+  if (unicode_write(CHARSET_UTF8, code_point, buffer) <= 0)
+    return NULL;
+  
+  return strings_clone(buffer);
+}
+
+
+

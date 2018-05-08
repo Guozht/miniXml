@@ -25,6 +25,7 @@
 
 
 char * xml_utils_escape_string(char * str, bool attribute);
+char * xml_utils_parse_integer_entity(char * entity, unsigned int base);
 
 
 #endif
